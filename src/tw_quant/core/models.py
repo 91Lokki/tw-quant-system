@@ -64,6 +64,35 @@ class SignalConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PortfolioConfig:
+    tradable_symbols: tuple[str, ...]
+    benchmark: str
+    rebalance_frequency: str
+    weighting: str
+    min_signal_score: float
+    max_positions: int
+    max_weight: float
+    hold_cash_when_inactive: bool
+
+    def requested_symbols(self) -> tuple[str, ...]:
+        ordered: list[str] = []
+        for symbol in (*self.tradable_symbols, self.benchmark):
+            if symbol and symbol not in ordered:
+                ordered.append(symbol)
+        return tuple(ordered)
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestEngineConfig:
+    initial_nav: float
+    bar_input_dir: Path
+    signal_input_path: Path
+    output_dir: Path
+    nav_file: str
+    weights_file: str
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestConfig:
     project_name: str
     market: str
@@ -73,6 +102,8 @@ class BacktestConfig:
     end_date: date
     data_paths: DataPaths
     trading_costs: TradingCosts
+    portfolio: PortfolioConfig
+    backtest: BacktestEngineConfig
 
     def date_range_label(self) -> str:
         return f"{self.start_date.isoformat()} to {self.end_date.isoformat()}"
@@ -90,6 +121,8 @@ class AppConfig:
     trading_costs: TradingCosts
     ingest: IngestConfig
     signals: SignalConfig
+    portfolio: PortfolioConfig
+    backtest: BacktestEngineConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(
@@ -101,7 +134,61 @@ class AppConfig:
             end_date=self.end_date,
             data_paths=self.data_paths,
             trading_costs=self.trading_costs,
+            portfolio=self.portfolio,
+            backtest=self.backtest,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PerformanceMetrics:
+    cumulative_return: float
+    annualized_return: float
+    annualized_volatility: float
+    max_drawdown: float
+    sharpe_ratio: float
+    turnover: float
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioWeightRow:
+    date: date
+    symbol: str
+    weight: float
+    signal_score: float | None
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "date": self.date.isoformat(),
+            "symbol": self.symbol,
+            "weight": f"{self.weight}",
+            "signal_score": "" if self.signal_score is None else f"{self.signal_score}",
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class NavRow:
+    date: date
+    nav: float
+    daily_return: float
+    gross_return: float
+    benchmark_nav: float
+    benchmark_return: float
+    turnover: float
+    transaction_cost: float
+    cash_weight: float
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "date": self.date.isoformat(),
+            "nav": f"{self.nav}",
+            "daily_return": f"{self.daily_return}",
+            "gross_return": f"{self.gross_return}",
+            "benchmark_nav": f"{self.benchmark_nav}",
+            "benchmark_return": f"{self.benchmark_return}",
+            "turnover": f"{self.turnover}",
+            "transaction_cost": f"{self.transaction_cost}",
+            "cash_weight": f"{self.cash_weight}",
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +200,11 @@ class BacktestResult:
     start_date: date
     end_date: date
     report_path: Path
+    nav_path: Path
+    weights_path: Path
+    metrics: PerformanceMetrics
+    final_nav: float
+    benchmark_final_nav: float
     status: str
     notes: tuple[str, ...]
 
@@ -124,10 +216,37 @@ class BacktestResult:
             f"Benchmark: {self.benchmark}",
             f"Date range: {self.start_date.isoformat()} to {self.end_date.isoformat()}",
             f"Status: {self.status}",
+            f"Final NAV: {self.final_nav:.6f}",
+            f"Cumulative Return: {self.metrics.cumulative_return:.4%}",
             f"Report: {self.report_path}",
+            f"NAV Path: {self.nav_path}",
+            f"Weights Path: {self.weights_path}",
         ]
         if self.notes:
             lines.append("Notes:")
+            lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "回測完成",
+            f"市場: {self.market}",
+            f"投資範圍: {self.universe}",
+            f"Benchmark: {self.benchmark}",
+            f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
+            f"最終 NAV: {self.final_nav:.6f}",
+            f"累積報酬: {self.metrics.cumulative_return:.2%}",
+            f"年化報酬: {self.metrics.annualized_return:.2%}",
+            f"年化波動: {self.metrics.annualized_volatility:.2%}",
+            f"最大回撤: {self.metrics.max_drawdown:.2%}",
+            f"Sharpe Ratio: {self.metrics.sharpe_ratio:.3f}",
+            f"累積換手: {self.metrics.turnover:.4f}",
+            f"NAV 檔案: {self.nav_path}",
+            f"權重檔案: {self.weights_path}",
+            f"摘要報告: {self.report_path}",
+        ]
+        if self.notes:
+            lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
         return "\n".join(lines)
 

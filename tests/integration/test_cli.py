@@ -59,6 +59,43 @@ class CliTests(unittest.TestCase):
     def test_backtest_command_writes_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
+            (temp_root / "artifacts" / "processed" / "market_data" / "daily").mkdir(parents=True, exist_ok=True)
+            (temp_root / "artifacts" / "processed" / "signals" / "daily").mkdir(parents=True, exist_ok=True)
+            _write_normalized_csv(
+                temp_root / "artifacts" / "processed" / "market_data" / "daily" / "2330.csv",
+                [
+                    ["2024-01-02", "2330", "100", "101", "99", "100", "1000"],
+                    ["2024-01-03", "2330", "102", "103", "101", "102", "1000"],
+                    ["2024-01-04", "2330", "103", "104", "102", "103", "1000"],
+                ],
+            )
+            _write_normalized_csv(
+                temp_root / "artifacts" / "processed" / "market_data" / "daily" / "0050.csv",
+                [
+                    ["2024-01-02", "0050", "50", "51", "49", "50", "1000"],
+                    ["2024-01-03", "0050", "51", "52", "50", "51", "1000"],
+                    ["2024-01-04", "0050", "52", "53", "51", "52", "1000"],
+                ],
+            )
+            _write_normalized_csv(
+                temp_root / "artifacts" / "processed" / "market_data" / "daily" / "TAIEX.csv",
+                [
+                    ["2024-01-02", "TAIEX", "18000", "18000", "18000", "18000", ""],
+                    ["2024-01-03", "TAIEX", "18100", "18100", "18100", "18100", ""],
+                    ["2024-01-04", "TAIEX", "18200", "18200", "18200", "18200", ""],
+                ],
+            )
+            _write_signal_csv(
+                temp_root / "artifacts" / "processed" / "signals" / "daily" / "signal_panel.csv",
+                [
+                    ["2024-01-02", "2330", "100", "", "", "0", "", "0", "", "0", "0.0"],
+                    ["2024-01-02", "0050", "50", "", "", "0", "", "0", "", "0", "0.0"],
+                    ["2024-01-03", "2330", "102", "101", "", "0", "0.02", "1", "0.1", "1", "1.0"],
+                    ["2024-01-03", "0050", "51", "50.5", "", "0", "0.02", "1", "0.1", "1", "0.5"],
+                    ["2024-01-04", "2330", "103", "102.5", "101.67", "1", "0.03", "1", "0.1", "1", "1.0"],
+                    ["2024-01-04", "0050", "52", "51.5", "51.0", "1", "0.04", "1", "0.1", "1", "0.5"],
+                ],
+            )
             config_path = temp_root / "settings.toml"
             config_path.write_text(
                 textwrap.dedent(
@@ -67,8 +104,8 @@ class CliTests(unittest.TestCase):
                     market = "TW cash equities"
                     universe = "unit_test_universe"
                     benchmark = "TAIEX"
-                    start_date = "2022-01-01"
-                    end_date = "2022-12-31"
+                    start_date = "2024-01-02"
+                    end_date = "2024-01-04"
 
                     [paths]
                     project_root = "."
@@ -102,6 +139,25 @@ class CliTests(unittest.TestCase):
                     input_subdir = "market_data/daily"
                     output_subdir = "signals/daily"
                     output_file = "signal_panel.csv"
+
+                    [portfolio]
+                    tradable_symbols = ["2330", "0050"]
+                    benchmark = "TAIEX"
+                    rebalance_frequency = "daily"
+                    weighting = "equal"
+                    min_signal_score = 0.0
+                    max_positions = 2
+                    max_weight = 1.0
+                    hold_cash_when_inactive = true
+
+                    [backtest]
+                    initial_nav = 1.0
+                    bar_input_subdir = "market_data/daily"
+                    signal_input_subdir = "signals/daily"
+                    signal_input_file = "signal_panel.csv"
+                    output_subdir = "backtests"
+                    nav_file = "daily_nav.csv"
+                    weights_file = "daily_weights.csv"
                     """
                 ).strip()
                 + "\n",
@@ -111,9 +167,13 @@ class CliTests(unittest.TestCase):
             result = run_cli("backtest", "--config", str(config_path))
 
             report_path = temp_root / "artifacts" / "reports" / "cli_test_project_backtest_summary.md"
+            nav_path = temp_root / "artifacts" / "processed" / "backtests" / "cli_test_project" / "daily_nav.csv"
+            weights_path = temp_root / "artifacts" / "processed" / "backtests" / "cli_test_project" / "daily_weights.csv"
             self.assertEqual(result.returncode, 0, msg=result.stderr)
             self.assertTrue(report_path.exists())
-            self.assertIn("scaffold backtest completed", result.stdout)
+            self.assertTrue(nav_path.exists())
+            self.assertTrue(weights_path.exists())
+            self.assertIn("回測完成", result.stdout)
 
     def test_signals_command_writes_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -187,6 +247,25 @@ class CliTests(unittest.TestCase):
                     input_subdir = "market_data/daily"
                     output_subdir = "signals/daily"
                     output_file = "signal_panel.csv"
+
+                    [portfolio]
+                    tradable_symbols = ["2330", "0050"]
+                    benchmark = "TAIEX"
+                    rebalance_frequency = "monthly"
+                    weighting = "equal"
+                    min_signal_score = 0.0
+                    max_positions = 2
+                    max_weight = 1.0
+                    hold_cash_when_inactive = true
+
+                    [backtest]
+                    initial_nav = 1.0
+                    bar_input_subdir = "market_data/daily"
+                    signal_input_subdir = "signals/daily"
+                    signal_input_file = "signal_panel.csv"
+                    output_subdir = "backtests"
+                    nav_file = "daily_nav.csv"
+                    weights_file = "daily_weights.csv"
                     """
                 ).strip()
                 + "\n",
@@ -205,6 +284,16 @@ def _write_normalized_csv(path: Path, rows: list[list[str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "date,symbol,open,high,low,close,volume\n" + "\n".join(",".join(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_signal_csv(path: Path, rows: list[list[str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "date,symbol,close,ma_fast,ma_slow,trend_signal,momentum_n,momentum_signal,volatility_n,volatility_filter,signal_score\n"
+        + "\n".join(",".join(row) for row in rows)
+        + "\n",
         encoding="utf-8",
     )
 

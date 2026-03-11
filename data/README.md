@@ -12,6 +12,9 @@ The v1 Taiwan equities ingestion flow uses:
 - `raw/finmind/<dataset>/...json` for raw FinMind API payloads
 - `processed/market_data/daily/<symbol>.csv` for normalized daily bars
 - `processed/signals/daily/signal_panel.csv` for the combined daily signal dataset
+- `processed/backtests/<project_name>/daily_nav.csv` for the daily equity curve
+- `processed/backtests/<project_name>/daily_weights.csv` for daily applied portfolio weights
+- `processed/reports/<project_name>_backtest_summary.md` for the markdown summary report
 
 ## Normalized Schema
 
@@ -50,4 +53,11 @@ The first real signal layer stores a combined CSV panel under `processed/signals
 
 Signal rows are generated from locally cached normalized bars. The loader can align requested symbols by the shared trading-date intersection before signals are computed.
 
-The scaffold keeps data local and file-based. A database layer is intentionally deferred until the project has real ingestion and backtest requirements.
+## Backtest Output Schema
+
+The current backtest layer writes:
+
+- a NAV dataset with `date,nav,daily_return,gross_return,benchmark_nav,benchmark_return,turnover,transaction_cost,cash_weight`
+- a weights dataset with `date,symbol,weight,signal_score`
+
+The project keeps data local and file-based. A database layer is intentionally deferred until the workflow complexity clearly justifies it.

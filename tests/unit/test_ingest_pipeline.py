@@ -126,6 +126,25 @@ class IngestPipelineTests(unittest.TestCase):
                     input_subdir = "market_data/daily"
                     output_subdir = "signals/daily"
                     output_file = "signal_panel.csv"
+
+                    [portfolio]
+                    tradable_symbols = ["2330", "0050"]
+                    benchmark = "TAIEX"
+                    rebalance_frequency = "monthly"
+                    weighting = "equal"
+                    min_signal_score = 0.0
+                    max_positions = 2
+                    max_weight = 1.0
+                    hold_cash_when_inactive = true
+
+                    [backtest]
+                    initial_nav = 1.0
+                    bar_input_subdir = "market_data/daily"
+                    signal_input_subdir = "signals/daily"
+                    signal_input_file = "signal_panel.csv"
+                    output_subdir = "backtests"
+                    nav_file = "daily_nav.csv"
+                    weights_file = "daily_weights.csv"
                     """
                 ).strip()
                 + "\n",

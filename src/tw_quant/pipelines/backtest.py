@@ -1,4 +1,4 @@
-"""Thin pipeline wiring for the scaffold backtest command."""
+"""Thin pipeline wiring for the local-data backtest command."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from tw_quant.reporting.report import build_report
 
 
 def execute_backtest(config_path: str | Path) -> BacktestResult:
-    """Load config, run the scaffold backtest flow, and write a report."""
+    """Load config, run the local-data backtest flow, and write a report."""
 
     config = load_backtest_settings(config_path)
     result = run_backtest(config)

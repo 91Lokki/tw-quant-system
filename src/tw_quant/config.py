@@ -8,9 +8,11 @@ import tomllib
 
 from tw_quant.core.models import (
     AppConfig,
+    BacktestEngineConfig,
     BacktestConfig,
     DataPaths,
     IngestConfig,
+    PortfolioConfig,
     SignalConfig,
     TradingCosts,
 )
@@ -83,6 +85,36 @@ def load_settings(path: str | Path) -> AppConfig:
         ),
         output_file=str(signals_payload.get("output_file", "signal_panel.csv")),
     )
+    portfolio_payload = payload["portfolio"]
+    portfolio_config = PortfolioConfig(
+        tradable_symbols=tuple(str(symbol) for symbol in portfolio_payload["tradable_symbols"]),
+        benchmark=str(portfolio_payload.get("benchmark", payload["benchmark"])),
+        rebalance_frequency=str(portfolio_payload.get("rebalance_frequency", "monthly")).lower(),
+        weighting=str(portfolio_payload.get("weighting", "equal")).lower(),
+        min_signal_score=float(portfolio_payload.get("min_signal_score", 0.0)),
+        max_positions=int(portfolio_payload.get("max_positions", len(signals_config.enabled_symbols))),
+        max_weight=float(portfolio_payload.get("max_weight", 1.0)),
+        hold_cash_when_inactive=bool(portfolio_payload.get("hold_cash_when_inactive", True)),
+    )
+    backtest_payload = payload["backtest"]
+    backtest_config = BacktestEngineConfig(
+        initial_nav=float(backtest_payload.get("initial_nav", 1.0)),
+        bar_input_dir=_resolve_path(
+            str(backtest_payload.get("bar_input_subdir", "market_data/daily")),
+            data_paths.processed_dir,
+        ),
+        signal_input_path=_resolve_path(
+            str(backtest_payload.get("signal_input_subdir", "signals/daily")),
+            data_paths.processed_dir,
+        )
+        / str(backtest_payload.get("signal_input_file", "signal_panel.csv")),
+        output_dir=_resolve_path(
+            str(backtest_payload.get("output_subdir", "backtests")),
+            data_paths.processed_dir,
+        ),
+        nav_file=str(backtest_payload.get("nav_file", "daily_nav.csv")),
+        weights_file=str(backtest_payload.get("weights_file", "daily_weights.csv")),
+    )
     config = AppConfig(
         project_name=str(payload["project_name"]),
         market=str(payload["market"]),
@@ -94,6 +126,8 @@ def load_settings(path: str | Path) -> AppConfig:
         trading_costs=trading_costs,
         ingest=ingest_config,
         signals=signals_config,
+        portfolio=portfolio_config,
+        backtest=backtest_config,
     )
 
     if config.start_date > config.end_date:
@@ -116,6 +150,26 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError("signals.volatility_window must be positive")
     if config.signals.volatility_cap <= 0:
         raise ValueError("signals.volatility_cap must be positive")
+    if not config.portfolio.tradable_symbols:
+        raise ValueError("portfolio.tradable_symbols must contain at least one symbol")
+    if config.portfolio.rebalance_frequency not in {"daily", "weekly", "monthly"}:
+        raise ValueError("portfolio.rebalance_frequency must be one of daily, weekly, monthly")
+    if config.portfolio.weighting != "equal":
+        raise ValueError("Only equal portfolio weighting is supported in v1")
+    if config.portfolio.max_positions <= 0:
+        raise ValueError("portfolio.max_positions must be positive")
+    if config.portfolio.max_weight <= 0 or config.portfolio.max_weight > 1:
+        raise ValueError("portfolio.max_weight must be between 0 and 1")
+    if config.portfolio.benchmark in config.portfolio.tradable_symbols:
+        raise ValueError("portfolio.benchmark must not appear in portfolio.tradable_symbols")
+    missing_signal_symbols = set(config.portfolio.tradable_symbols) - set(config.signals.enabled_symbols)
+    if missing_signal_symbols:
+        missing_text = ", ".join(sorted(missing_signal_symbols))
+        raise ValueError(
+            f"portfolio.tradable_symbols must be covered by signals.enabled_symbols: {missing_text}"
+        )
+    if config.backtest.initial_nav <= 0:
+        raise ValueError("backtest.initial_nav must be positive")
 
     return config
 

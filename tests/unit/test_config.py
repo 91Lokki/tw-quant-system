@@ -38,6 +38,15 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(config.signals.ma_slow_window, 60)
         self.assertEqual(config.signals.output_dir, PROJECT_ROOT / "data" / "processed" / "signals" / "daily")
         self.assertEqual(config.signals.output_file, "signal_panel.csv")
+        self.assertEqual(config.portfolio.tradable_symbols, ("2330", "0050"))
+        self.assertEqual(config.portfolio.benchmark, "TAIEX")
+        self.assertEqual(config.portfolio.rebalance_frequency, "monthly")
+        self.assertEqual(config.portfolio.weighting, "equal")
+        self.assertTrue(config.portfolio.hold_cash_when_inactive)
+        self.assertEqual(config.backtest.initial_nav, 1.0)
+        self.assertEqual(config.backtest.bar_input_dir, PROJECT_ROOT / "data" / "processed" / "market_data" / "daily")
+        self.assertEqual(config.backtest.signal_input_path, PROJECT_ROOT / "data" / "processed" / "signals" / "daily" / "signal_panel.csv")
+        self.assertEqual(config.backtest.output_dir, PROJECT_ROOT / "data" / "processed" / "backtests")
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in local stdlib-only
 
 def _print_backtest_summary(config_path: Path) -> int:
     result = execute_backtest(config_path)
-    print(result.summary_text())
+    print(result.summary_text_zh())
     return 0
 
 
@@ -36,7 +36,7 @@ def _print_signal_summary(config_path: Path) -> int:
 
 if typer is not None:
     app = typer.Typer(
-        help="Taiwan equities quantitative research scaffold.",
+        help="Taiwan equities quantitative research system.",
         no_args_is_help=True,
         add_completion=False,
     )
@@ -54,9 +54,9 @@ if typer is not None:
             help="Path to a TOML settings file.",
         ),
     ) -> None:
-        """Run the scaffold backtest pipeline."""
+        """Run the local-data backtest pipeline."""
         result = execute_backtest(config)
-        typer.echo(result.summary_text())
+        typer.echo(result.summary_text_zh())
 
     @app.command("ingest")
     def ingest_command(
@@ -101,13 +101,13 @@ if typer is not None:
 def _build_argparse_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="twq",
-        description="Taiwan equities quantitative research scaffold.",
+        description="Taiwan equities quantitative research system.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
     backtest_parser = subparsers.add_parser(
         "backtest",
-        help="Run the scaffold backtest pipeline.",
+        help="Run the local-data backtest pipeline.",
     )
     backtest_parser.add_argument(
         "--config",
@@ -162,7 +162,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     """Run the CLI.
 
     Typer is used when available through installed project dependencies.
-    A small argparse fallback keeps the scaffold runnable in stdlib-only environments.
+    A small argparse fallback keeps the CLI runnable in stdlib-only environments.
     """
 
     if typer is None:

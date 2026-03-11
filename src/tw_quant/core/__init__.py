@@ -2,6 +2,7 @@
 
 from tw_quant.core.models import (
     AppConfig,
+    BacktestEngineConfig,
     BacktestConfig,
     BacktestResult,
     DataPaths,
@@ -9,7 +10,11 @@ from tw_quant.core.models import (
     IngestResult,
     IngestedDataset,
     MarketDataset,
+    NavRow,
     NormalizedBar,
+    PerformanceMetrics,
+    PortfolioConfig,
+    PortfolioWeightRow,
     SignalConfig,
     SignalResult,
     SignalRow,
@@ -18,6 +23,7 @@ from tw_quant.core.models import (
 
 __all__ = [
     "AppConfig",
+    "BacktestEngineConfig",
     "BacktestConfig",
     "BacktestResult",
     "DataPaths",
@@ -25,7 +31,11 @@ __all__ = [
     "IngestResult",
     "IngestedDataset",
     "MarketDataset",
+    "NavRow",
     "NormalizedBar",
+    "PerformanceMetrics",
+    "PortfolioConfig",
+    "PortfolioWeightRow",
     "SignalConfig",
     "SignalResult",
     "SignalRow",

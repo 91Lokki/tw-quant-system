@@ -1,6 +1,6 @@
 # tw_quant
 
-`tw_quant` is a modular Python project scaffold for quantitative research and backtesting on Taiwan equities. It is designed to grow into a serious end-of-day trading system while staying small, readable, and believable as a university CS portfolio project.
+`tw_quant` is a modular Python project for quantitative research and backtesting on Taiwan equities. It is designed to grow into a serious end-of-day trading system while staying small, readable, and believable as a university CS portfolio project.
 
 ## Why Taiwan Equities
 
@@ -36,16 +36,16 @@ The current architecture follows the shape of a real quant workflow:
 Current module responsibilities:
 
 - `config.py` loads typed settings from TOML
-- `core/models.py` defines the small set of shared dataclasses used by the scaffold
+- `core/models.py` defines the typed contracts used across ingestion, signals, portfolio construction, and backtesting
 - `data/providers.py` fetches raw market data from FinMind
 - `data/normalize.py` defines the normalized daily bar schema
 - `data/loader.py` loads normalized bars and aligns them by date for downstream use
 - `data/store.py` persists raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for market data and generated artifacts
 - `signals/generate.py` computes the first real daily signal set from normalized bars
-- `portfolio/construct.py` is the future target-weight construction entrypoint
-- `backtest/run.py` wires the early research flow into a single backtest result
-- `reporting/report.py` writes a lightweight run summary
+- `portfolio/construct.py` converts signal outputs into target weights and daily applied weights
+- `backtest/run.py` loads local bars and signals, simulates rebalancing, and produces NAV plus metrics
+- `reporting/report.py` writes a markdown backtest summary
 - `execution/paper.py` is a documented placeholder for future paper execution support
 - `pipelines/ingest.py` orchestrates fetching, normalization, and local caching
 - `pipelines/signals.py` loads local datasets, aligns symbols by date, computes signals, and writes outputs
@@ -72,17 +72,18 @@ Highlights:
 
 ## Current Status
 
-This v1 scaffold includes:
+Current implemented capabilities:
 
 - a packageable Python project with `pyproject.toml`
 - a thin CLI entrypoint, `twq`
 - a typed settings loader
-- shared dataclasses for run configuration and scaffold backtest results
+- shared dataclasses for config, datasets, signals, portfolio weights, NAV rows, and metrics
 - a real daily data ingestion pipeline for Taiwan equities and a benchmark
 - a local dataset loader with schema validation and date alignment
 - a first usable daily signal layer with moving average, momentum, and volatility-based filtering
 - local raw JSON caching plus normalized CSV storage
-- a minimal backtest pipeline that produces a report artifact
+- a real local-data portfolio construction and backtest workflow
+- daily NAV, weights, and markdown summary outputs
 - unit and integration tests for config, models, and CLI behavior
 
 It intentionally does not include a real trading strategy or broker connectivity yet.
@@ -108,8 +109,8 @@ Planned extensions are intentionally aligned with a realistic quant workflow:
 
 1. richer data ingestion coverage for Taiwan equities
 2. signal generation for cross-sectional or rules-based strategies
-3. portfolio construction with position sizing and constraints
-4. backtesting with transaction cost modeling
+3. more advanced portfolio construction with richer constraints
+4. more realistic backtesting assumptions such as slippage calibration and execution timing variants
 5. reporting with performance and risk summaries
 6. paper execution for dry-run order simulation
 7. broker execution once the research workflow is stable
@@ -139,6 +140,27 @@ Current signal set:
 - rolling volatility filter
 
 The initial `signal_score` is intentionally simple: it averages the binary trend and momentum directions, then zeroes the score when the rolling volatility filter fails.
+
+## Backtest Layer Notes
+
+The current backtest workflow reads:
+
+- normalized daily bars from `data/processed/market_data/daily/`
+- the generated signal panel from `data/processed/signals/daily/signal_panel.csv`
+
+The v1 portfolio rule is intentionally explicit:
+
+- benchmark is loaded for reference but is not treated as a held asset
+- tradable symbols are selected from positive `signal_score` values
+- weights are equal-weight among selected symbols
+- rebalancing uses the first aligned trading day of each configured period
+- new weights become active on the next trading day to avoid lookahead bias
+
+Current backtest outputs:
+
+- `data/processed/backtests/<project_name>/daily_nav.csv`
+- `data/processed/backtests/<project_name>/daily_weights.csv`
+- `data/processed/reports/<project_name>_backtest_summary.md`
 
 ## Disclaimer
 

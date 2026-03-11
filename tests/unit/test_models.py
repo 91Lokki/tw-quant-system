@@ -10,7 +10,15 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from tw_quant.core.models import BacktestConfig, BacktestResult, DataPaths, TradingCosts
+from tw_quant.core.models import (
+    BacktestConfig,
+    BacktestEngineConfig,
+    BacktestResult,
+    DataPaths,
+    PerformanceMetrics,
+    PortfolioConfig,
+    TradingCosts,
+)
 
 
 class ModelTests(unittest.TestCase):
@@ -33,6 +41,24 @@ class ModelTests(unittest.TestCase):
                 tax_bps=30.0,
                 slippage_bps=5.0,
             ),
+            portfolio=PortfolioConfig(
+                tradable_symbols=("2330", "0050"),
+                benchmark="TAIEX",
+                rebalance_frequency="monthly",
+                weighting="equal",
+                min_signal_score=0.0,
+                max_positions=2,
+                max_weight=1.0,
+                hold_cash_when_inactive=True,
+            ),
+            backtest=BacktestEngineConfig(
+                initial_nav=1.0,
+                bar_input_dir=PROJECT_ROOT / "data" / "processed" / "market_data" / "daily",
+                signal_input_path=PROJECT_ROOT / "data" / "processed" / "signals" / "daily" / "signal_panel.csv",
+                output_dir=PROJECT_ROOT / "data" / "processed" / "backtests",
+                nav_file="daily_nav.csv",
+                weights_file="daily_weights.csv",
+            ),
         )
 
         self.assertEqual(config.date_range_label(), "2021-01-01 to 2021-12-31")
@@ -46,15 +72,30 @@ class ModelTests(unittest.TestCase):
             start_date=date(2021, 1, 1),
             end_date=date(2021, 12, 31),
             report_path=Path("data/processed/reports/demo_backtest_summary.md"),
-            status="scaffold backtest completed",
+            nav_path=Path("data/processed/backtests/demo/daily_nav.csv"),
+            weights_path=Path("data/processed/backtests/demo/daily_weights.csv"),
+            metrics=PerformanceMetrics(
+                cumulative_return=0.12,
+                annualized_return=0.11,
+                annualized_volatility=0.2,
+                max_drawdown=-0.08,
+                sharpe_ratio=0.55,
+                turnover=1.3,
+            ),
+            final_nav=1.12,
+            benchmark_final_nav=1.08,
+            status="local-data backtest completed",
             notes=("First note.", "Second note."),
         )
 
         summary = result.summary_text()
+        summary_zh = result.summary_text_zh()
 
         self.assertIn("Project: demo", summary)
-        self.assertIn("Status: scaffold backtest completed", summary)
+        self.assertIn("Status: local-data backtest completed", summary)
         self.assertIn("- First note.", summary)
+        self.assertIn("回測完成", summary_zh)
+        self.assertIn("累積報酬: 12.00%", summary_zh)
 
 
 if __name__ == "__main__":
