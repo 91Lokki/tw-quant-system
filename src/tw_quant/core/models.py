@@ -42,6 +42,28 @@ class IngestConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SignalConfig:
+    enabled_symbols: tuple[str, ...]
+    benchmark: str
+    ma_fast_window: int
+    ma_slow_window: int
+    momentum_window: int
+    volatility_window: int
+    volatility_cap: float
+    align_by_date: bool
+    input_dir: Path
+    output_dir: Path
+    output_file: str
+
+    def requested_symbols(self) -> tuple[str, ...]:
+        ordered: list[str] = []
+        for symbol in (*self.enabled_symbols, self.benchmark):
+            if symbol and symbol not in ordered:
+                ordered.append(symbol)
+        return tuple(ordered)
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestConfig:
     project_name: str
     market: str
@@ -67,6 +89,7 @@ class AppConfig:
     data_paths: DataPaths
     trading_costs: TradingCosts
     ingest: IngestConfig
+    signals: SignalConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(
@@ -169,6 +192,77 @@ class IngestResult:
             lines.append(
                 f"- {dataset.symbol}: {dataset.rows} 筆, {source_label}, {dataset.path.name}"
             )
+        if self.notes:
+            lines.append("說明:")
+            lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class MarketDataset:
+    symbols: tuple[str, ...]
+    start_date: date
+    end_date: date
+    bars_by_symbol: dict[str, tuple[NormalizedBar, ...]]
+    aligned_dates: tuple[date, ...]
+    notes: tuple[str, ...]
+
+    @property
+    def row_count(self) -> int:
+        return sum(len(rows) for rows in self.bars_by_symbol.values())
+
+
+@dataclass(frozen=True, slots=True)
+class SignalRow:
+    date: date
+    symbol: str
+    close: float
+    ma_fast: float | None
+    ma_slow: float | None
+    trend_signal: int
+    momentum_n: float | None
+    momentum_signal: int
+    volatility_n: float | None
+    volatility_filter: int
+    signal_score: float
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "date": self.date.isoformat(),
+            "symbol": self.symbol,
+            "close": f"{self.close}",
+            "ma_fast": "" if self.ma_fast is None else f"{self.ma_fast}",
+            "ma_slow": "" if self.ma_slow is None else f"{self.ma_slow}",
+            "trend_signal": str(self.trend_signal),
+            "momentum_n": "" if self.momentum_n is None else f"{self.momentum_n}",
+            "momentum_signal": str(self.momentum_signal),
+            "volatility_n": "" if self.volatility_n is None else f"{self.volatility_n}",
+            "volatility_filter": str(self.volatility_filter),
+            "signal_score": f"{self.signal_score}",
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SignalResult:
+    start_date: date
+    end_date: date
+    symbols: tuple[str, ...]
+    aligned_dates: tuple[date, ...]
+    row_count: int
+    output_path: Path
+    notes: tuple[str, ...]
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "訊號產生完成",
+            f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
+            f"標的數量: {len(self.symbols)}",
+            f"對齊交易日數: {len(self.aligned_dates)}",
+            f"輸出筆數: {self.row_count}",
+            f"輸出檔案: {self.output_path}",
+        ]
+        for symbol in self.symbols:
+            lines.append(f"- {symbol}")
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)

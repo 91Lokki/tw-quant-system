@@ -32,6 +32,12 @@ class LoadSettingsTests(unittest.TestCase):
             config.ingest.normalized_dir,
             PROJECT_ROOT / "data" / "processed" / "market_data" / "daily",
         )
+        self.assertEqual(config.signals.enabled_symbols, ("2330", "0050"))
+        self.assertEqual(config.signals.benchmark, "TAIEX")
+        self.assertEqual(config.signals.ma_fast_window, 20)
+        self.assertEqual(config.signals.ma_slow_window, 60)
+        self.assertEqual(config.signals.output_dir, PROJECT_ROOT / "data" / "processed" / "signals" / "daily")
+        self.assertEqual(config.signals.output_file, "signal_panel.csv")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Data utilities for tw_quant."""
 
+from tw_quant.data.loader import load_market_dataset
 from tw_quant.data.io import prepare_data_paths
 from tw_quant.data.normalize import NORMALIZED_BAR_COLUMNS, normalize_benchmark_daily, normalize_security_daily
 from tw_quant.data.providers import FinMindProvider, build_provider
@@ -10,6 +11,7 @@ __all__ = [
     "NORMALIZED_BAR_COLUMNS",
     "build_provider",
     "cache_covers_range",
+    "load_market_dataset",
     "normalize_benchmark_daily",
     "normalize_security_daily",
     "prepare_data_paths",

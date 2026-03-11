@@ -113,6 +113,19 @@ class IngestPipelineTests(unittest.TestCase):
                     token_env_var = "FINMIND_API_TOKEN"
                     raw_cache_subdir = "finmind"
                     normalized_subdir = "market_data/daily"
+
+                    [signals]
+                    enabled_symbols = ["2330", "0050"]
+                    benchmark = "TAIEX"
+                    ma_fast_window = 20
+                    ma_slow_window = 60
+                    momentum_window = 20
+                    volatility_window = 20
+                    volatility_cap = 0.35
+                    align_by_date = true
+                    input_subdir = "market_data/daily"
+                    output_subdir = "signals/daily"
+                    output_file = "signal_panel.csv"
                     """
                 ).strip()
                 + "\n",

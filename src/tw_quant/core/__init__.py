@@ -8,7 +8,11 @@ from tw_quant.core.models import (
     IngestConfig,
     IngestResult,
     IngestedDataset,
+    MarketDataset,
     NormalizedBar,
+    SignalConfig,
+    SignalResult,
+    SignalRow,
     TradingCosts,
 )
 
@@ -20,6 +24,10 @@ __all__ = [
     "IngestConfig",
     "IngestResult",
     "IngestedDataset",
+    "MarketDataset",
     "NormalizedBar",
+    "SignalConfig",
+    "SignalResult",
+    "SignalRow",
     "TradingCosts",
 ]

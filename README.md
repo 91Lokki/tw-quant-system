@@ -39,14 +39,16 @@ Current module responsibilities:
 - `core/models.py` defines the small set of shared dataclasses used by the scaffold
 - `data/providers.py` fetches raw market data from FinMind
 - `data/normalize.py` defines the normalized daily bar schema
+- `data/loader.py` loads normalized bars and aligns them by date for downstream use
 - `data/store.py` persists raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for market data and generated artifacts
-- `signals/generate.py` is the future signal entrypoint
+- `signals/generate.py` computes the first real daily signal set from normalized bars
 - `portfolio/construct.py` is the future target-weight construction entrypoint
 - `backtest/run.py` wires the early research flow into a single backtest result
 - `reporting/report.py` writes a lightweight run summary
 - `execution/paper.py` is a documented placeholder for future paper execution support
 - `pipelines/ingest.py` orchestrates fetching, normalization, and local caching
+- `pipelines/signals.py` loads local datasets, aligns symbols by date, computes signals, and writes outputs
 - `pipelines/backtest.py` keeps the CLI thin by orchestrating the workflow
 
 ## Repository Layout
@@ -77,6 +79,8 @@ This v1 scaffold includes:
 - a typed settings loader
 - shared dataclasses for run configuration and scaffold backtest results
 - a real daily data ingestion pipeline for Taiwan equities and a benchmark
+- a local dataset loader with schema validation and date alignment
+- a first usable daily signal layer with moving average, momentum, and volatility-based filtering
 - local raw JSON caching plus normalized CSV storage
 - a minimal backtest pipeline that produces a report artifact
 - unit and integration tests for config, models, and CLI behavior
@@ -92,6 +96,7 @@ uv sync
 uv run pytest
 uv run twq --help
 uv run twq ingest --config configs/settings.example.toml
+uv run twq signals --config configs/settings.example.toml
 uv run twq backtest --config configs/settings.example.toml
 ```
 
@@ -122,6 +127,18 @@ Important limitation:
 - the normalized benchmark output therefore maps that single price into `open/high/low/close` and leaves `volume` empty
 
 This is deliberate for v1: it keeps the source practical and the architecture clean while making the limitation explicit.
+
+## Signal Layer Notes
+
+The first signal layer reads locally normalized bars and writes a combined daily signal panel to `data/processed/signals/daily/signal_panel.csv`.
+
+Current signal set:
+
+- moving-average trend signal
+- lookback momentum
+- rolling volatility filter
+
+The initial `signal_score` is intentionally simple: it averages the binary trend and momentum directions, then zeroes the score when the rolling volatility filter fails.
 
 ## Disclaimer
 

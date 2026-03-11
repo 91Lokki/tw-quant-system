@@ -14,14 +14,16 @@ The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold bus
 - `core/models.py` defines shared dataclasses used across the scaffold
 - `data/providers.py` fetches raw market data from FinMind
 - `data/normalize.py` enforces the project-wide daily bar schema
+- `data/loader.py` loads normalized local bars, validates schema, and aligns symbols by date
 - `data/store.py` writes raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for raw data, processed data, and reports
-- `signals/generate.py` represents the future strategy research entrypoint
+- `signals/generate.py` computes the first real daily signal set from normalized bars
 - `portfolio/construct.py` represents the future target-weight construction step
 - `backtest/run.py` coordinates the current scaffold backtest flow
 - `reporting/report.py` writes a lightweight markdown summary for each run
 - `execution/paper.py` is a placeholder for future dry-run execution support
 - `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
+- `pipelines/signals.py` orchestrates local dataset loading, alignment, signal generation, and output
 - `pipelines/backtest.py` wires the workflow together for the CLI
 
 ## Why It Is Intentionally Simple
@@ -34,6 +36,8 @@ This scaffold avoids extra layers that would not yet carry their own weight:
 - no database abstraction layer
 
 There is one intentionally small provider contract because the ingestion pipeline already benefits from swapping a real provider for a mocked one in tests.
+
+The dataset loader is also intentionally small: it validates the normalized CSV schema and offers shared-date alignment, but it does not introduce a DataFrame framework or a multi-backend data abstraction layer.
 
 ## Extension Path
 

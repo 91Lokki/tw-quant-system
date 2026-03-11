@@ -8,6 +8,7 @@ from typing import Sequence
 
 from tw_quant.pipelines.backtest import execute_backtest
 from tw_quant.pipelines.ingest import execute_ingest
+from tw_quant.pipelines.signals import execute_signals
 
 try:
     import typer
@@ -23,6 +24,12 @@ def _print_backtest_summary(config_path: Path) -> int:
 
 def _print_ingest_summary(config_path: Path, refresh: bool = False) -> int:
     result = execute_ingest(config_path, force_refresh=refresh)
+    print(result.summary_text_zh())
+    return 0
+
+
+def _print_signal_summary(config_path: Path) -> int:
+    result = execute_signals(config_path)
     print(result.summary_text_zh())
     return 0
 
@@ -73,6 +80,23 @@ if typer is not None:
         result = execute_ingest(config, force_refresh=refresh)
         typer.echo(result.summary_text_zh())
 
+    @app.command("signals")
+    def signals_command(
+        config: Path = typer.Option(
+            ...,
+            "--config",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Path to a TOML settings file.",
+        ),
+    ) -> None:
+        """Load normalized bars, compute signals, and write the signal panel."""
+        result = execute_signals(config)
+        typer.echo(result.summary_text_zh())
+
 
 def _build_argparse_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -106,6 +130,16 @@ def _build_argparse_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Ignore cached files and refetch data.",
     )
+    signals_parser = subparsers.add_parser(
+        "signals",
+        help="Load normalized data and generate signal outputs.",
+    )
+    signals_parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to a TOML settings file.",
+    )
     return parser
 
 
@@ -117,6 +151,8 @@ def _run_argparse(argv: Sequence[str] | None = None) -> int:
         return _print_backtest_summary(args.config)
     if args.command == "ingest":
         return _print_ingest_summary(args.config, refresh=bool(args.refresh))
+    if args.command == "signals":
+        return _print_signal_summary(args.config)
 
     parser.print_help()
     return 0

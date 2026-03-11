@@ -6,7 +6,14 @@ from datetime import date
 from pathlib import Path
 import tomllib
 
-from tw_quant.core.models import AppConfig, BacktestConfig, DataPaths, IngestConfig, TradingCosts
+from tw_quant.core.models import (
+    AppConfig,
+    BacktestConfig,
+    DataPaths,
+    IngestConfig,
+    SignalConfig,
+    TradingCosts,
+)
 
 
 def _resolve_path(raw_path: str, base_dir: Path) -> Path:
@@ -56,6 +63,26 @@ def load_settings(path: str | Path) -> AppConfig:
             else None
         ),
     )
+    signals_payload = payload["signals"]
+    signals_config = SignalConfig(
+        enabled_symbols=tuple(str(symbol) for symbol in signals_payload["enabled_symbols"]),
+        benchmark=str(signals_payload.get("benchmark", payload["benchmark"])),
+        ma_fast_window=int(signals_payload["ma_fast_window"]),
+        ma_slow_window=int(signals_payload["ma_slow_window"]),
+        momentum_window=int(signals_payload["momentum_window"]),
+        volatility_window=int(signals_payload["volatility_window"]),
+        volatility_cap=float(signals_payload.get("volatility_cap", 0.35)),
+        align_by_date=bool(signals_payload.get("align_by_date", True)),
+        input_dir=_resolve_path(
+            str(signals_payload.get("input_subdir", "market_data/daily")),
+            data_paths.processed_dir,
+        ),
+        output_dir=_resolve_path(
+            str(signals_payload.get("output_subdir", "signals/daily")),
+            data_paths.processed_dir,
+        ),
+        output_file=str(signals_payload.get("output_file", "signal_panel.csv")),
+    )
     config = AppConfig(
         project_name=str(payload["project_name"]),
         market=str(payload["market"]),
@@ -66,6 +93,7 @@ def load_settings(path: str | Path) -> AppConfig:
         data_paths=data_paths,
         trading_costs=trading_costs,
         ingest=ingest_config,
+        signals=signals_config,
     )
 
     if config.start_date > config.end_date:
@@ -74,6 +102,20 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError("ingest.symbols must contain at least one symbol")
     if config.ingest.storage_format != "csv":
         raise ValueError("Only csv storage_format is supported in v1")
+    if not config.signals.enabled_symbols:
+        raise ValueError("signals.enabled_symbols must contain at least one symbol")
+    if config.signals.ma_fast_window <= 0:
+        raise ValueError("signals.ma_fast_window must be positive")
+    if config.signals.ma_slow_window <= 0:
+        raise ValueError("signals.ma_slow_window must be positive")
+    if config.signals.ma_fast_window >= config.signals.ma_slow_window:
+        raise ValueError("signals.ma_fast_window must be smaller than signals.ma_slow_window")
+    if config.signals.momentum_window <= 0:
+        raise ValueError("signals.momentum_window must be positive")
+    if config.signals.volatility_window <= 0:
+        raise ValueError("signals.volatility_window must be positive")
+    if config.signals.volatility_cap <= 0:
+        raise ValueError("signals.volatility_cap must be positive")
 
     return config
 
