@@ -1,0 +1,20 @@
+# Example configuration for the scaffold backtest command.
+# Cost values below are illustrative placeholders for development only.
+
+project_name = "tw_quant_v1"
+market = "TW cash equities"
+universe = "top_liquid_tw_equities"
+benchmark = "TAIEX"
+start_date = "2021-01-01"
+end_date = "2024-12-31"
+
+[paths]
+project_root = ".."
+raw = "data/raw"
+processed = "data/processed"
+reports = "data/processed/reports"
+
+[costs]
+commission_bps = 14.25
+tax_bps = 30.0
+slippage_bps = 5.0
