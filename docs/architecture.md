@@ -22,7 +22,8 @@ The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold bus
 - `portfolio/construct.py` turns signal rows into rebalance targets and daily applied weights
 - `backtest/run.py` simulates the local-data backtest flow and writes NAV plus weight artifacts
 - `backtest/metrics.py` computes core performance metrics
-- `reporting/report.py` writes a markdown summary for each run
+- `reporting/charts.py` renders simple SVG performance charts from the persisted NAV series
+- `reporting/report.py` writes a markdown summary for each run and links the generated chart artifacts
 - `execution/paper.py` is a placeholder for future dry-run execution support
 - `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
 - `pipelines/signals.py` orchestrates local dataset loading, alignment, signal generation, and output

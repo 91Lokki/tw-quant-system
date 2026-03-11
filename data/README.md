@@ -14,7 +14,9 @@ The v1 Taiwan equities ingestion flow uses:
 - `processed/signals/daily/signal_panel.csv` for the combined daily signal dataset
 - `processed/backtests/<project_name>/daily_nav.csv` for the daily equity curve
 - `processed/backtests/<project_name>/daily_weights.csv` for daily applied portfolio weights
-- `processed/reports/<project_name>_backtest_summary.md` for the markdown summary report
+- `processed/reports/<project_name>/backtest_summary.md` for the markdown summary report
+- `processed/reports/<project_name>/equity_curve.svg` for the portfolio-vs-benchmark equity chart
+- `processed/reports/<project_name>/drawdown.svg` for the drawdown chart
 
 ## Normalized Schema
 

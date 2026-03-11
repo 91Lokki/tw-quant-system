@@ -132,10 +132,16 @@ class BacktestEngineTests(unittest.TestCase):
             self.assertAlmostEqual(result.metrics.turnover, 1.5)
             self.assertTrue(result.nav_path.exists())
             self.assertTrue(result.weights_path.exists())
+            self.assertTrue(result.report_path.exists())
+            self.assertTrue(result.equity_curve_path.exists())
+            self.assertTrue(result.drawdown_path.exists())
 
             with result.nav_path.open("r", newline="", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[-1]["nav"], "1.2100000000000002")
+            report_text = result.report_path.read_text(encoding="utf-8")
+            self.assertIn("## Charts", report_text)
+            self.assertIn("## Strategy Logic", report_text)
 
 
 def _write_normalized_csv(path: Path, rows: list[list[str]]) -> None:

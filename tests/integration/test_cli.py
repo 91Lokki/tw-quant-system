@@ -29,6 +29,24 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 class CliTests(unittest.TestCase):
+    def test_repo_entrypoint_script_bootstraps_cli(self) -> None:
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+
+        result = subprocess.run(
+            [sys.executable, str(PROJECT_ROOT / "bin" / "twq"), "--help"],
+            cwd=PROJECT_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("backtest", result.stdout)
+        self.assertIn("ingest", result.stdout)
+        self.assertIn("signals", result.stdout)
+
     def test_top_level_help(self) -> None:
         result = run_cli("--help")
 
@@ -166,13 +184,17 @@ class CliTests(unittest.TestCase):
 
             result = run_cli("backtest", "--config", str(config_path))
 
-            report_path = temp_root / "artifacts" / "reports" / "cli_test_project_backtest_summary.md"
+            report_path = temp_root / "artifacts" / "reports" / "cli_test_project" / "backtest_summary.md"
             nav_path = temp_root / "artifacts" / "processed" / "backtests" / "cli_test_project" / "daily_nav.csv"
             weights_path = temp_root / "artifacts" / "processed" / "backtests" / "cli_test_project" / "daily_weights.csv"
+            equity_curve_path = temp_root / "artifacts" / "reports" / "cli_test_project" / "equity_curve.svg"
+            drawdown_path = temp_root / "artifacts" / "reports" / "cli_test_project" / "drawdown.svg"
             self.assertEqual(result.returncode, 0, msg=result.stderr)
             self.assertTrue(report_path.exists())
             self.assertTrue(nav_path.exists())
             self.assertTrue(weights_path.exists())
+            self.assertTrue(equity_curve_path.exists())
+            self.assertTrue(drawdown_path.exists())
             self.assertIn("回測完成", result.stdout)
 
     def test_signals_command_writes_output(self) -> None:

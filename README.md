@@ -75,7 +75,7 @@ Highlights:
 Current implemented capabilities:
 
 - a packageable Python project with `pyproject.toml`
-- a thin CLI entrypoint, `twq`
+- a thin CLI exposed through `python -m tw_quant`
 - a typed settings loader
 - shared dataclasses for config, datasets, signals, portfolio weights, NAV rows, and metrics
 - a real daily data ingestion pipeline for Taiwan equities and a benchmark
@@ -83,7 +83,7 @@ Current implemented capabilities:
 - a first usable daily signal layer with moving average, momentum, and volatility-based filtering
 - local raw JSON caching plus normalized CSV storage
 - a real local-data portfolio construction and backtest workflow
-- daily NAV, weights, and markdown summary outputs
+- daily NAV, weights, markdown summary, and SVG chart outputs
 - unit and integration tests for config, models, and CLI behavior
 
 It intentionally does not include a real trading strategy or broker connectivity yet.
@@ -92,13 +92,15 @@ It intentionally does not include a real trading strategy or broker connectivity
 
 This project is configured for `uv` and Python 3.12.
 
+The recommended stable workflow is to invoke the package module directly:
+
 ```bash
 uv sync
 uv run pytest
-uv run twq --help
-uv run twq ingest --config configs/settings.example.toml
-uv run twq signals --config configs/settings.example.toml
-uv run twq backtest --config configs/settings.example.toml
+uv run python -m tw_quant --help
+uv run python -m tw_quant ingest --config configs/settings.example.toml
+uv run python -m tw_quant signals --config configs/settings.example.toml
+uv run python -m tw_quant backtest --config configs/settings.example.toml
 ```
 
 If `uv` is not installed locally yet, install it first and then run the commands above.
@@ -160,7 +162,9 @@ Current backtest outputs:
 
 - `data/processed/backtests/<project_name>/daily_nav.csv`
 - `data/processed/backtests/<project_name>/daily_weights.csv`
-- `data/processed/reports/<project_name>_backtest_summary.md`
+- `data/processed/reports/<project_name>/backtest_summary.md`
+- `data/processed/reports/<project_name>/equity_curve.svg`
+- `data/processed/reports/<project_name>/drawdown.svg`
 
 ## Disclaimer
 

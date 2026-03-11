@@ -197,11 +197,17 @@ class BacktestResult:
     market: str
     universe: str
     benchmark: str
+    tradable_symbols: tuple[str, ...]
+    rebalance_frequency: str
+    trading_costs: TradingCosts
+    hold_cash_when_inactive: bool
     start_date: date
     end_date: date
     report_path: Path
     nav_path: Path
     weights_path: Path
+    equity_curve_path: Path
+    drawdown_path: Path
     metrics: PerformanceMetrics
     final_nav: float
     benchmark_final_nav: float
@@ -214,6 +220,8 @@ class BacktestResult:
             f"Market: {self.market}",
             f"Universe: {self.universe}",
             f"Benchmark: {self.benchmark}",
+            f"Tradable Symbols: {', '.join(self.tradable_symbols)}",
+            f"Rebalance Frequency: {self.rebalance_frequency}",
             f"Date range: {self.start_date.isoformat()} to {self.end_date.isoformat()}",
             f"Status: {self.status}",
             f"Final NAV: {self.final_nav:.6f}",
@@ -221,6 +229,8 @@ class BacktestResult:
             f"Report: {self.report_path}",
             f"NAV Path: {self.nav_path}",
             f"Weights Path: {self.weights_path}",
+            f"Equity Curve: {self.equity_curve_path}",
+            f"Drawdown Chart: {self.drawdown_path}",
         ]
         if self.notes:
             lines.append("Notes:")
@@ -232,18 +242,22 @@ class BacktestResult:
             "回測完成",
             f"市場: {self.market}",
             f"投資範圍: {self.universe}",
-            f"Benchmark: {self.benchmark}",
+            f"基準指標: {self.benchmark}",
+            f"可交易標的: {', '.join(self.tradable_symbols)}",
+            f"再平衡頻率: {self.rebalance_frequency}",
             f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
             f"最終 NAV: {self.final_nav:.6f}",
             f"累積報酬: {self.metrics.cumulative_return:.2%}",
             f"年化報酬: {self.metrics.annualized_return:.2%}",
             f"年化波動: {self.metrics.annualized_volatility:.2%}",
             f"最大回撤: {self.metrics.max_drawdown:.2%}",
-            f"Sharpe Ratio: {self.metrics.sharpe_ratio:.3f}",
+            f"Sharpe 比率: {self.metrics.sharpe_ratio:.3f}",
             f"累積換手: {self.metrics.turnover:.4f}",
             f"NAV 檔案: {self.nav_path}",
             f"權重檔案: {self.weights_path}",
             f"摘要報告: {self.report_path}",
+            f"權益曲線圖: {self.equity_curve_path}",
+            f"回撤圖: {self.drawdown_path}",
         ]
         if self.notes:
             lines.append("說明:")

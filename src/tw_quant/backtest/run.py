@@ -16,6 +16,7 @@ from tw_quant.core.models import (
 )
 from tw_quant.data import load_market_dataset, prepare_data_paths
 from tw_quant.portfolio.construct import build_target_weights, determine_rebalance_dates, expand_daily_weights
+from tw_quant.reporting.report import build_report
 from tw_quant.signals import load_signal_rows
 
 
@@ -64,7 +65,10 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
     output_dir = config.backtest.output_dir / config.project_name
     nav_path = _write_nav_rows(output_dir / config.backtest.nav_file, nav_rows)
     weights_path = _write_weight_rows(output_dir / config.backtest.weights_file, weight_rows)
-    report_path = config.data_paths.reports_dir / f"{config.project_name}_backtest_summary.md"
+    report_dir = config.data_paths.reports_dir / config.project_name
+    report_path = report_dir / "backtest_summary.md"
+    equity_curve_path = report_dir / "equity_curve.svg"
+    drawdown_path = report_dir / "drawdown.svg"
     metrics = compute_metrics(nav_rows, config.backtest.initial_nav)
 
     notes = list(market_dataset.notes)
@@ -72,23 +76,33 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         f"再平衡頻率使用 {config.portfolio.rebalance_frequency}，且以每個週期的第一個共同交易日作為換倉訊號日。"
     )
     notes.append("換倉在當日收盤後生效，下一個交易日才開始承擔新權重的報酬，以避免 lookahead bias。")
+    if config.portfolio.hold_cash_when_inactive:
+        notes.append("當沒有標的通過訊號門檻時，投資組合會保留現金部位。")
 
-    return BacktestResult(
+    result = BacktestResult(
         project_name=config.project_name,
         market=config.market,
         universe=config.universe,
         benchmark=config.benchmark,
+        tradable_symbols=config.portfolio.tradable_symbols,
+        rebalance_frequency=config.portfolio.rebalance_frequency,
+        trading_costs=config.trading_costs,
+        hold_cash_when_inactive=config.portfolio.hold_cash_when_inactive,
         start_date=config.start_date,
         end_date=config.end_date,
         report_path=report_path,
         nav_path=nav_path,
         weights_path=weights_path,
+        equity_curve_path=equity_curve_path,
+        drawdown_path=drawdown_path,
         metrics=metrics,
         final_nav=nav_rows[-1].nav if nav_rows else config.backtest.initial_nav,
         benchmark_final_nav=benchmark_final_nav,
         status="local-data backtest completed",
         notes=tuple(notes),
     )
+    build_report(result)
+    return result
 
 
 def _simulate_nav(
