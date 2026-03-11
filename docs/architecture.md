@@ -12,24 +12,28 @@ The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold bus
 
 - `config.py` loads typed settings from TOML
 - `core/models.py` defines shared dataclasses used across the scaffold
+- `data/providers.py` fetches raw market data from FinMind
+- `data/normalize.py` enforces the project-wide daily bar schema
+- `data/store.py` writes raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for raw data, processed data, and reports
 - `signals/generate.py` represents the future strategy research entrypoint
 - `portfolio/construct.py` represents the future target-weight construction step
 - `backtest/run.py` coordinates the current scaffold backtest flow
 - `reporting/report.py` writes a lightweight markdown summary for each run
 - `execution/paper.py` is a placeholder for future dry-run execution support
+- `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
 - `pipelines/backtest.py` wires the workflow together for the CLI
 
 ## Why It Is Intentionally Simple
 
 This scaffold avoids extra layers that would not yet carry their own weight:
 
-- no provider interface hierarchy
+- no large provider interface hierarchy
 - no broker adapter base classes
 - no abstract strategy framework
 - no database abstraction layer
 
-Those pieces can be added later when the project has multiple concrete implementations that need a stable contract.
+There is one intentionally small provider contract because the ingestion pipeline already benefits from swapping a real provider for a mocked one in tests.
 
 ## Extension Path
 

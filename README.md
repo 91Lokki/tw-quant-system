@@ -37,12 +37,16 @@ Current module responsibilities:
 
 - `config.py` loads typed settings from TOML
 - `core/models.py` defines the small set of shared dataclasses used by the scaffold
+- `data/providers.py` fetches raw market data from FinMind
+- `data/normalize.py` defines the normalized daily bar schema
+- `data/store.py` persists raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for market data and generated artifacts
 - `signals/generate.py` is the future signal entrypoint
 - `portfolio/construct.py` is the future target-weight construction entrypoint
 - `backtest/run.py` wires the early research flow into a single backtest result
 - `reporting/report.py` writes a lightweight run summary
 - `execution/paper.py` is a documented placeholder for future paper execution support
+- `pipelines/ingest.py` orchestrates fetching, normalization, and local caching
 - `pipelines/backtest.py` keeps the CLI thin by orchestrating the workflow
 
 ## Repository Layout
@@ -72,10 +76,12 @@ This v1 scaffold includes:
 - a thin CLI entrypoint, `twq`
 - a typed settings loader
 - shared dataclasses for run configuration and scaffold backtest results
+- a real daily data ingestion pipeline for Taiwan equities and a benchmark
+- local raw JSON caching plus normalized CSV storage
 - a minimal backtest pipeline that produces a report artifact
 - unit and integration tests for config, models, and CLI behavior
 
-It intentionally does not include a real trading strategy, real market data ingestion, or broker connectivity yet.
+It intentionally does not include a real trading strategy or broker connectivity yet.
 
 ## Development Setup
 
@@ -85,6 +91,7 @@ This project is configured for `uv` and Python 3.12.
 uv sync
 uv run pytest
 uv run twq --help
+uv run twq ingest --config configs/settings.example.toml
 uv run twq backtest --config configs/settings.example.toml
 ```
 
@@ -94,13 +101,27 @@ If `uv` is not installed locally yet, install it first and then run the commands
 
 Planned extensions are intentionally aligned with a realistic quant workflow:
 
-1. data ingestion for Taiwan equities
+1. richer data ingestion coverage for Taiwan equities
 2. signal generation for cross-sectional or rules-based strategies
 3. portfolio construction with position sizing and constraints
 4. backtesting with transaction cost modeling
 5. reporting with performance and risk summaries
 6. paper execution for dry-run order simulation
 7. broker execution once the research workflow is stable
+
+## Data Source Notes
+
+The v1 data layer is built around FinMind:
+
+- equities and ETFs such as `2330` and `0050` use `TaiwanStockPrice`
+- the default benchmark uses `TaiwanStockTotalReturnIndex` with `TAIEX`
+
+Important limitation:
+
+- the chosen FinMind benchmark dataset provides a daily price-like index series, not full OHLCV bars
+- the normalized benchmark output therefore maps that single price into `open/high/low/close` and leaves `volume` empty
+
+This is deliberate for v1: it keeps the source practical and the architecture clean while making the limitation explicit.
 
 ## Disclaimer
 

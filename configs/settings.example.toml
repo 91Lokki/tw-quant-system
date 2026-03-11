@@ -1,4 +1,4 @@
-# Example configuration for the scaffold backtest command.
+# Example configuration for the scaffold backtest and ingest commands.
 # Cost values below are illustrative placeholders for development only.
 
 project_name = "tw_quant_v1"
@@ -18,3 +18,12 @@ reports = "data/processed/reports"
 commission_bps = 14.25
 tax_bps = 30.0
 slippage_bps = 5.0
+
+[ingest]
+provider = "finmind"
+symbols = ["2330", "0050"]
+refresh = false
+storage_format = "csv"
+token_env_var = "FINMIND_API_TOKEN"
+raw_cache_subdir = "finmind"
+normalized_subdir = "market_data/daily"

@@ -34,12 +34,20 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("backtest", result.stdout)
+        self.assertIn("ingest", result.stdout)
 
     def test_backtest_help(self) -> None:
         result = run_cli("backtest", "--help")
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("--config", result.stdout)
+
+    def test_ingest_help(self) -> None:
+        result = run_cli("ingest", "--help")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("--config", result.stdout)
+        self.assertIn("--refresh", result.stdout)
 
     def test_backtest_command_writes_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -65,6 +73,15 @@ class CliTests(unittest.TestCase):
                     commission_bps = 10.0
                     tax_bps = 30.0
                     slippage_bps = 5.0
+
+                    [ingest]
+                    provider = "finmind"
+                    symbols = ["2330", "0050"]
+                    refresh = false
+                    storage_format = "csv"
+                    token_env_var = "FINMIND_API_TOKEN"
+                    raw_cache_subdir = "finmind"
+                    normalized_subdir = "market_data/daily"
                     """
                 ).strip()
                 + "\n",

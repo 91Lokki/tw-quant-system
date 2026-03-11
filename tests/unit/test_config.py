@@ -23,6 +23,15 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(config.data_paths.raw_dir, PROJECT_ROOT / "data" / "raw")
         self.assertEqual(config.data_paths.reports_dir, PROJECT_ROOT / "data" / "processed" / "reports")
         self.assertAlmostEqual(config.trading_costs.commission_bps, 14.25)
+        self.assertEqual(config.ingest.provider, "finmind")
+        self.assertEqual(config.ingest.symbols, ("2330", "0050"))
+        self.assertEqual(config.ingest.benchmark, "TAIEX")
+        self.assertEqual(config.ingest.storage_format, "csv")
+        self.assertEqual(config.ingest.raw_cache_dir, PROJECT_ROOT / "data" / "raw" / "finmind")
+        self.assertEqual(
+            config.ingest.normalized_dir,
+            PROJECT_ROOT / "data" / "processed" / "market_data" / "daily",
+        )
 
 
 if __name__ == "__main__":
