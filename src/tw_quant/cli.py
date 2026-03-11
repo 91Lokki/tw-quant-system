@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Sequence
 
 from tw_quant.pipelines.backtest import execute_backtest
+from tw_quant.pipelines.diagnostics import execute_diagnostics
 from tw_quant.pipelines.ingest import execute_ingest
 from tw_quant.pipelines.signals import execute_signals
+from tw_quant.pipelines.walkforward import execute_walkforward
 
 try:
     import typer
@@ -30,6 +32,18 @@ def _print_ingest_summary(config_path: Path, refresh: bool = False) -> int:
 
 def _print_signal_summary(config_path: Path) -> int:
     result = execute_signals(config_path)
+    print(result.summary_text_zh())
+    return 0
+
+
+def _print_walkforward_summary(config_path: Path) -> int:
+    result = execute_walkforward(config_path)
+    print(result.summary_text_zh())
+    return 0
+
+
+def _print_diagnostics_summary(config_path: Path) -> int:
+    result = execute_diagnostics(config_path)
     print(result.summary_text_zh())
     return 0
 
@@ -97,6 +111,40 @@ if typer is not None:
         result = execute_signals(config)
         typer.echo(result.summary_text_zh())
 
+    @app.command("walkforward")
+    def walkforward_command(
+        config: Path = typer.Option(
+            ...,
+            "--config",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Path to a TOML settings file.",
+        ),
+    ) -> None:
+        """Run the walk-forward out-of-sample evaluation pipeline."""
+        result = execute_walkforward(config)
+        typer.echo(result.summary_text_zh())
+
+    @app.command("diagnostics")
+    def diagnostics_command(
+        config: Path = typer.Option(
+            ...,
+            "--config",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Path to a TOML settings file.",
+        ),
+    ) -> None:
+        """Analyze existing local artifacts and write diagnostics outputs."""
+        result = execute_diagnostics(config)
+        typer.echo(result.summary_text_zh())
+
 
 def _build_argparse_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -140,6 +188,26 @@ def _build_argparse_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to a TOML settings file.",
     )
+    walkforward_parser = subparsers.add_parser(
+        "walkforward",
+        help="Run the walk-forward out-of-sample evaluation pipeline.",
+    )
+    walkforward_parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to a TOML settings file.",
+    )
+    diagnostics_parser = subparsers.add_parser(
+        "diagnostics",
+        help="Analyze existing local artifacts and write diagnostics outputs.",
+    )
+    diagnostics_parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to a TOML settings file.",
+    )
     return parser
 
 
@@ -153,6 +221,10 @@ def _run_argparse(argv: Sequence[str] | None = None) -> int:
         return _print_ingest_summary(args.config, refresh=bool(args.refresh))
     if args.command == "signals":
         return _print_signal_summary(args.config)
+    if args.command == "walkforward":
+        return _print_walkforward_summary(args.config)
+    if args.command == "diagnostics":
+        return _print_diagnostics_summary(args.config)
 
     parser.print_help()
     return 0

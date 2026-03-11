@@ -5,8 +5,8 @@ project_name = "tw_quant_v1"
 market = "TW cash equities"
 universe = "top_liquid_tw_equities"
 benchmark = "TAIEX"
-start_date = "2021-01-01"
-end_date = "2024-12-31"
+start_date = "2014-01-01"
+end_date = "2026-03-10"
 
 [paths]
 project_root = ".."
@@ -59,3 +59,10 @@ signal_input_file = "signal_panel.csv"
 output_subdir = "backtests"
 nav_file = "daily_nav.csv"
 weights_file = "daily_weights.csv"
+
+[walkforward]
+enabled = true
+window_type = "expanding"
+train_window_days = 252
+test_window_days = 63
+minimum_history_days = 252

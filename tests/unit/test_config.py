@@ -47,6 +47,11 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(config.backtest.bar_input_dir, PROJECT_ROOT / "data" / "processed" / "market_data" / "daily")
         self.assertEqual(config.backtest.signal_input_path, PROJECT_ROOT / "data" / "processed" / "signals" / "daily" / "signal_panel.csv")
         self.assertEqual(config.backtest.output_dir, PROJECT_ROOT / "data" / "processed" / "backtests")
+        self.assertTrue(config.walkforward.enabled)
+        self.assertEqual(config.walkforward.window_type, "expanding")
+        self.assertEqual(config.walkforward.train_window_days, 252)
+        self.assertEqual(config.walkforward.test_window_days, 63)
+        self.assertEqual(config.walkforward.minimum_history_days, 252)
 
 
 if __name__ == "__main__":

@@ -93,6 +93,15 @@ class BacktestEngineConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class WalkForwardConfig:
+    enabled: bool
+    window_type: str
+    train_window_days: int
+    test_window_days: int
+    minimum_history_days: int
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestConfig:
     project_name: str
     market: str
@@ -104,6 +113,7 @@ class BacktestConfig:
     trading_costs: TradingCosts
     portfolio: PortfolioConfig
     backtest: BacktestEngineConfig
+    walkforward: WalkForwardConfig
 
     def date_range_label(self) -> str:
         return f"{self.start_date.isoformat()} to {self.end_date.isoformat()}"
@@ -123,6 +133,7 @@ class AppConfig:
     signals: SignalConfig
     portfolio: PortfolioConfig
     backtest: BacktestEngineConfig
+    walkforward: WalkForwardConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(
@@ -136,6 +147,7 @@ class AppConfig:
             trading_costs=self.trading_costs,
             portfolio=self.portfolio,
             backtest=self.backtest,
+            walkforward=self.walkforward,
         )
 
 
@@ -262,6 +274,136 @@ class BacktestResult:
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardWindow:
+    window_id: int
+    train_start: date
+    train_end: date
+    test_start: date
+    test_end: date
+    train_size: int
+    test_size: int
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardWindowResult:
+    window_id: int
+    train_start: date
+    train_end: date
+    test_start: date
+    test_end: date
+    train_size: int
+    test_size: int
+    final_nav: float
+    benchmark_final_nav: float
+    metrics: PerformanceMetrics
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "window_id": str(self.window_id),
+            "train_start": self.train_start.isoformat(),
+            "train_end": self.train_end.isoformat(),
+            "test_start": self.test_start.isoformat(),
+            "test_end": self.test_end.isoformat(),
+            "train_size": str(self.train_size),
+            "test_size": str(self.test_size),
+            "final_nav": f"{self.final_nav}",
+            "benchmark_final_nav": f"{self.benchmark_final_nav}",
+            "cumulative_return": f"{self.metrics.cumulative_return}",
+            "annualized_return": f"{self.metrics.annualized_return}",
+            "annualized_volatility": f"{self.metrics.annualized_volatility}",
+            "max_drawdown": f"{self.metrics.max_drawdown}",
+            "sharpe_ratio": f"{self.metrics.sharpe_ratio}",
+            "turnover": f"{self.metrics.turnover}",
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardResult:
+    project_name: str
+    market: str
+    universe: str
+    benchmark: str
+    tradable_symbols: tuple[str, ...]
+    rebalance_frequency: str
+    trading_costs: TradingCosts
+    hold_cash_when_inactive: bool
+    window_type: str
+    train_window_days: int
+    test_window_days: int
+    minimum_history_days: int
+    start_date: date
+    end_date: date
+    nav_path: Path
+    window_summary_path: Path
+    report_path: Path
+    metrics: PerformanceMetrics
+    final_nav: float
+    benchmark_final_nav: float
+    window_count: int
+    status: str
+    notes: tuple[str, ...]
+    windows: tuple[WalkForwardWindowResult, ...]
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "Walk-forward 評估完成",
+            f"市場: {self.market}",
+            f"投資範圍: {self.universe}",
+            f"基準指標: {self.benchmark}",
+            f"可交易標的: {', '.join(self.tradable_symbols)}",
+            f"Walk-forward 設計: {self.window_type}",
+            f"訓練窗長度: {self.train_window_days} 個交易日",
+            f"測試窗長度: {self.test_window_days} 個交易日",
+            f"最小歷史長度: {self.minimum_history_days} 個交易日",
+            f"視窗數量: {self.window_count}",
+            f"樣本外期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
+            f"最終 NAV: {self.final_nav:.6f}",
+            f"累積報酬: {self.metrics.cumulative_return:.2%}",
+            f"年化報酬: {self.metrics.annualized_return:.2%}",
+            f"年化波動: {self.metrics.annualized_volatility:.2%}",
+            f"最大回撤: {self.metrics.max_drawdown:.2%}",
+            f"Sharpe 比率: {self.metrics.sharpe_ratio:.3f}",
+            f"累積換手: {self.metrics.turnover:.4f}",
+            f"樣本外 NAV 檔案: {self.nav_path}",
+            f"視窗摘要檔案: {self.window_summary_path}",
+            f"摘要報告: {self.report_path}",
+        ]
+        if self.notes:
+            lines.append("說明:")
+            lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticsResult:
+    project_name: str
+    start_date: date
+    end_date: date
+    report_path: Path
+    yearly_table_path: Path
+    walkforward_table_path: Path
+    symbol_exposure_path: Path
+    signal_diagnostics_path: Path
+    key_findings: tuple[str, ...]
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "診斷分析完成",
+            f"專案: {self.project_name}",
+            f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
+            f"年度拆解: {self.yearly_table_path}",
+            f"Walk-forward 診斷: {self.walkforward_table_path}",
+            f"部位曝險摘要: {self.symbol_exposure_path}",
+            f"訊號診斷摘要: {self.signal_diagnostics_path}",
+            f"診斷報告: {self.report_path}",
+        ]
+        if self.key_findings:
+            lines.append("重點發現:")
+            lines.extend(f"- {finding}" for finding in self.key_findings)
         return "\n".join(lines)
 
 

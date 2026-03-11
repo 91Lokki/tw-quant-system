@@ -18,6 +18,7 @@ from tw_quant.core.models import (
     PerformanceMetrics,
     PortfolioConfig,
     TradingCosts,
+    WalkForwardConfig,
 )
 
 
@@ -58,6 +59,13 @@ class ModelTests(unittest.TestCase):
                 output_dir=PROJECT_ROOT / "data" / "processed" / "backtests",
                 nav_file="daily_nav.csv",
                 weights_file="daily_weights.csv",
+            ),
+            walkforward=WalkForwardConfig(
+                enabled=True,
+                window_type="expanding",
+                train_window_days=252,
+                test_window_days=63,
+                minimum_history_days=252,
             ),
         )
 

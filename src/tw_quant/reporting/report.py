@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tw_quant.core.models import BacktestResult
+from tw_quant.core.models import BacktestResult, WalkForwardResult
 from tw_quant.reporting.charts import write_backtest_charts
 
 
@@ -104,4 +104,99 @@ def _limitation_lines() -> tuple[str, ...]:
         "- The current portfolio construction rule is intentionally simple: long-only, signal-driven, and equal-weight.",
         "- The benchmark workflow relies on the normalized TAIEX proxy series and therefore does not include full benchmark OHLCV fields.",
         "- The project is a local research workflow; it does not include paper execution monitoring or broker connectivity yet.",
+    )
+
+
+def build_walkforward_report(result: WalkForwardResult) -> str:
+    """Write a markdown summary for the walk-forward evaluation workflow."""
+
+    result.report_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tradable_symbols = ", ".join(result.tradable_symbols)
+    notes = "\n".join(f"- {note}" for note in result.notes) or "- No notes recorded."
+    window_lines = _walkforward_window_table_lines(result)
+    limitation_notes = "\n".join(_walkforward_limitation_lines())
+    content = "\n".join(
+        [
+            f"# {result.project_name} Walk-Forward Summary",
+            "",
+            "## Evaluation Design",
+            "",
+            f"- Project Name: {result.project_name}",
+            f"- Market: {result.market}",
+            f"- Universe: {result.universe}",
+            f"- Tradable Symbols: {tradable_symbols}",
+            f"- Benchmark: {result.benchmark}",
+            f"- Window Type: {result.window_type}",
+            f"- Train Window Length: {result.train_window_days} aligned trading days",
+            f"- Test Window Length: {result.test_window_days} aligned trading days",
+            f"- Minimum History Length: {result.minimum_history_days} aligned trading days",
+            f"- Windows Evaluated: {result.window_count}",
+            f"- Combined OOS Period: {result.start_date.isoformat()} to {result.end_date.isoformat()}",
+            f"- Rebalance Frequency: {result.rebalance_frequency}",
+            f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
+            f"- Status: {result.status}",
+            "",
+            "## Combined Out-of-Sample Performance",
+            "",
+            f"- Final NAV: {result.final_nav:.6f}",
+            f"- Benchmark Final NAV: {result.benchmark_final_nav:.6f}",
+            f"- Cumulative Return: {result.metrics.cumulative_return:.4%}",
+            f"- Annualized Return: {result.metrics.annualized_return:.4%}",
+            f"- Annualized Volatility: {result.metrics.annualized_volatility:.4%}",
+            f"- Max Drawdown: {result.metrics.max_drawdown:.4%}",
+            f"- Sharpe Ratio: {result.metrics.sharpe_ratio:.4f}",
+            f"- Turnover: {result.metrics.turnover:.6f}",
+            "",
+            "## Window Schedule",
+            "",
+            *window_lines,
+            "",
+            "## Output Artifacts",
+            "",
+            f"- Walk-Forward NAV CSV: {result.nav_path}",
+            f"- Window Summary CSV: {result.window_summary_path}",
+            f"- Report: {result.report_path}",
+            "",
+            "## Notes",
+            "",
+            notes,
+            "",
+            "## Known Limitations",
+            "",
+            limitation_notes,
+            "",
+        ]
+    )
+    result.report_path.write_text(content, encoding="utf-8")
+    return str(result.report_path)
+
+
+def _walkforward_window_table_lines(result: WalkForwardResult) -> tuple[str, ...]:
+    header = (
+        "| Window | Train Range | Test Range | OOS Return | Annualized Return | "
+        "Max Drawdown | Turnover |"
+    )
+    divider = "| --- | --- | --- | --- | --- | --- | --- |"
+    rows = [header, divider]
+    for window in result.windows:
+        rows.append(
+            "| "
+            f"{window.window_id} | "
+            f"{window.train_start.isoformat()} to {window.train_end.isoformat()} | "
+            f"{window.test_start.isoformat()} to {window.test_end.isoformat()} | "
+            f"{window.metrics.cumulative_return:.2%} | "
+            f"{window.metrics.annualized_return:.2%} | "
+            f"{window.metrics.max_drawdown:.2%} | "
+            f"{window.metrics.turnover:.4f} |"
+        )
+    return tuple(rows)
+
+
+def _walkforward_limitation_lines() -> tuple[str, ...]:
+    return (
+        "- The current walk-forward workflow evaluates a fixed-rule strategy; it does not refit model parameters inside each train window.",
+        "- The OOS aggregation is portfolio-return based and intentionally simple, which keeps the workflow explainable but not yet feature-complete.",
+        "- The benchmark view still relies on the normalized TAIEX proxy series rather than a full benchmark OHLCV history.",
+        "- The project remains a local research system and does not include live execution or broker connectivity.",
     )

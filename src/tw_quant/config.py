@@ -15,6 +15,7 @@ from tw_quant.core.models import (
     PortfolioConfig,
     SignalConfig,
     TradingCosts,
+    WalkForwardConfig,
 )
 
 
@@ -115,6 +116,19 @@ def load_settings(path: str | Path) -> AppConfig:
         nav_file=str(backtest_payload.get("nav_file", "daily_nav.csv")),
         weights_file=str(backtest_payload.get("weights_file", "daily_weights.csv")),
     )
+    walkforward_payload = payload.get("walkforward", {})
+    walkforward_config = WalkForwardConfig(
+        enabled=bool(walkforward_payload.get("enabled", False)),
+        window_type=str(walkforward_payload.get("window_type", "expanding")).lower(),
+        train_window_days=int(walkforward_payload.get("train_window_days", 252)),
+        test_window_days=int(walkforward_payload.get("test_window_days", 63)),
+        minimum_history_days=int(
+            walkforward_payload.get(
+                "minimum_history_days",
+                walkforward_payload.get("train_window_days", 252),
+            )
+        ),
+    )
     config = AppConfig(
         project_name=str(payload["project_name"]),
         market=str(payload["market"]),
@@ -128,6 +142,7 @@ def load_settings(path: str | Path) -> AppConfig:
         signals=signals_config,
         portfolio=portfolio_config,
         backtest=backtest_config,
+        walkforward=walkforward_config,
     )
 
     if config.start_date > config.end_date:
@@ -170,6 +185,18 @@ def load_settings(path: str | Path) -> AppConfig:
         )
     if config.backtest.initial_nav <= 0:
         raise ValueError("backtest.initial_nav must be positive")
+    if config.walkforward.window_type not in {"expanding", "rolling"}:
+        raise ValueError("walkforward.window_type must be one of expanding, rolling")
+    if config.walkforward.train_window_days <= 0:
+        raise ValueError("walkforward.train_window_days must be positive")
+    if config.walkforward.test_window_days <= 0:
+        raise ValueError("walkforward.test_window_days must be positive")
+    if config.walkforward.minimum_history_days <= 0:
+        raise ValueError("walkforward.minimum_history_days must be positive")
+    if config.walkforward.minimum_history_days < config.signals.ma_slow_window:
+        raise ValueError(
+            "walkforward.minimum_history_days must be at least as large as signals.ma_slow_window"
+        )
 
     return config
 

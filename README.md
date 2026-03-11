@@ -1,170 +1,277 @@
 # tw_quant
 
-`tw_quant` is a modular Python project for quantitative research and backtesting on Taiwan equities. It is designed to grow into a serious end-of-day trading system while staying small, readable, and believable as a university CS portfolio project.
+`tw_quant` is a modular Python project for quantitative research on Taiwan equities. It is built as a realistic end-of-day research and backtesting system that can later grow into paper trading or broker-connected execution, while remaining small enough to explain clearly in a university CS portfolio.
 
-## Why Taiwan Equities
+## What This Project Does
 
-Taiwan equities are a useful market for a systems-oriented quant project:
+This repository implements a local research pipeline for Taiwan equities:
 
-- they provide a concrete regional focus instead of a generic "global stocks" demo
-- they have market-specific trading rules worth modeling later
-- they allow the project to demonstrate engineering discipline, not just factor experimentation
+1. ingest daily market data for Taiwan stocks, ETFs, and a benchmark
+2. normalize and cache the data locally
+3. compute simple but usable daily signals
+4. convert signals into target portfolio weights
+5. run a deterministic backtest with transaction costs
+6. generate reports and visual artifacts
+7. run walk-forward out-of-sample evaluation on the same local artifacts
 
-This repository is aimed at daily or slower strategies. It is not a high-frequency trading system.
+The current project is focused on daily or slower strategies. It is not a high-frequency system, a web app, or an auto-trading bot.
 
-## Project Goals
+## Problem Statement
 
-- keep the codebase modular enough to extend into a full research and trading workflow
-- separate data, signals, portfolio logic, backtesting, and reporting concerns
-- make design choices that are easy to explain in a portfolio or interview setting
-- keep v1 intentionally small so each module has a clear reason to exist
+Many student quant projects stop at a notebook, a single script, or a one-off backtest. This project is meant to solve a more engineering-oriented problem:
 
-## Non-Goals for V1
+- build a clean research pipeline that is modular enough to extend
+- keep the data, signal, portfolio, backtest, and reporting stages separate
+- make the current system useful now without overbuilding a framework too early
 
-- live broker integration
-- automated trading
-- intraday or high-frequency infrastructure
-- web services or dashboards
-- a large abstraction-heavy framework with no real workflow
+The result is a project that is credible as both a CS systems project and an applied quantitative research project.
 
-## Architecture Overview
-
-The current architecture follows the shape of a real quant workflow:
-
-`CLI -> pipeline -> domain modules -> outputs`
-
-Current module responsibilities:
-
-- `config.py` loads typed settings from TOML
-- `core/models.py` defines the typed contracts used across ingestion, signals, portfolio construction, and backtesting
-- `data/providers.py` fetches raw market data from FinMind
-- `data/normalize.py` defines the normalized daily bar schema
-- `data/loader.py` loads normalized bars and aligns them by date for downstream use
-- `data/store.py` persists raw JSON caches and normalized CSV files
-- `data/io.py` manages local directory conventions for market data and generated artifacts
-- `signals/generate.py` computes the first real daily signal set from normalized bars
-- `portfolio/construct.py` converts signal outputs into target weights and daily applied weights
-- `backtest/run.py` loads local bars and signals, simulates rebalancing, and produces NAV plus metrics
-- `reporting/report.py` writes a markdown backtest summary
-- `execution/paper.py` is a documented placeholder for future paper execution support
-- `pipelines/ingest.py` orchestrates fetching, normalization, and local caching
-- `pipelines/signals.py` loads local datasets, aligns symbols by date, computes signals, and writes outputs
-- `pipelines/backtest.py` keeps the CLI thin by orchestrating the workflow
-
-## Repository Layout
+## End-to-End Pipeline
 
 ```text
-.
-├── configs/
-├── data/
-├── docs/
-├── research/
-├── src/tw_quant/
-└── tests/
+FinMind daily data
+    ->
+raw JSON cache
+    ->
+normalized daily bars
+    ->
+signal generation
+    ->
+portfolio construction
+    ->
+backtest engine
+    ->
+markdown report + SVG charts
 ```
 
-Highlights:
+Expanded workflow:
 
-- production code lives in `src/tw_quant`
-- exploratory work lives in `research`
-- sample configuration lives in `configs`
-- local datasets and generated reports stay under `data`
+```text
+ingest
+  -> data/raw/finmind/*.json
+  -> data/processed/market_data/daily/*.csv
 
-## Current Status
+signals
+  -> data/processed/signals/daily/signal_panel.csv
 
-Current implemented capabilities:
+backtest
+  -> data/processed/backtests/<project_name>/daily_nav.csv
+  -> data/processed/backtests/<project_name>/daily_weights.csv
+  -> data/processed/reports/<project_name>/backtest_summary.md
+  -> data/processed/reports/<project_name>/equity_curve.svg
+  -> data/processed/reports/<project_name>/drawdown.svg
 
-- a packageable Python project with `pyproject.toml`
-- a thin CLI exposed through `python -m tw_quant`
-- a typed settings loader
-- shared dataclasses for config, datasets, signals, portfolio weights, NAV rows, and metrics
-- a real daily data ingestion pipeline for Taiwan equities and a benchmark
-- a local dataset loader with schema validation and date alignment
-- a first usable daily signal layer with moving average, momentum, and volatility-based filtering
-- local raw JSON caching plus normalized CSV storage
-- a real local-data portfolio construction and backtest workflow
-- daily NAV, weights, markdown summary, and SVG chart outputs
-- unit and integration tests for config, models, and CLI behavior
+walkforward
+  -> data/processed/backtests/<project_name>/walkforward/walkforward_nav.csv
+  -> data/processed/backtests/<project_name>/walkforward/window_summary.csv
+  -> data/processed/reports/<project_name>/walkforward/walkforward_summary.md
 
-It intentionally does not include a real trading strategy or broker connectivity yet.
+diagnostics
+  -> data/processed/backtests/<project_name>/diagnostics/yearly_return_table.csv
+  -> data/processed/backtests/<project_name>/diagnostics/walkforward_window_diagnostics.csv
+  -> data/processed/backtests/<project_name>/diagnostics/symbol_exposure_summary.csv
+  -> data/processed/backtests/<project_name>/diagnostics/signal_diagnostics.csv
+  -> data/processed/reports/<project_name>/diagnostics/diagnostics_summary.md
 
-## Development Setup
+demo app
+  -> app/streamlit_app.py
+  -> reads existing local artifacts without rerunning the quant engine
+```
 
-This project is configured for `uv` and Python 3.12.
+## Current Stable Workflow
 
-The recommended stable workflow is to invoke the package module directly:
+The currently recommended execution path is:
 
 ```bash
 uv sync
 uv run pytest
 uv run python -m tw_quant --help
-uv run python -m tw_quant ingest --config configs/settings.example.toml
+uv run python -m tw_quant ingest --config configs/settings.example.toml --refresh
 uv run python -m tw_quant signals --config configs/settings.example.toml
 uv run python -m tw_quant backtest --config configs/settings.example.toml
+uv run python -m tw_quant walkforward --config configs/settings.example.toml
+uv run python -m tw_quant diagnostics --config configs/settings.example.toml
+uv run python -m streamlit run app/streamlit_app.py
 ```
 
-If `uv` is not installed locally yet, install it first and then run the commands above.
+This direct module invocation is the stable workflow for the project at the moment.
+Use `--refresh` on the ingest step whenever you want to refetch FinMind data and extend local artifacts to the latest stable historical close.
 
-## Planned Roadmap
+## Current Implemented Features
 
-Planned extensions are intentionally aligned with a realistic quant workflow:
+- typed TOML configuration for ingestion, signals, portfolio, and backtest settings
+- FinMind-based Taiwan daily market data ingestion
+- local raw JSON caching and normalized CSV storage
+- schema validation and shared-date alignment for normalized bars
+- signal generation with:
+  - moving average trend
+  - lookback momentum
+  - rolling volatility filter
+- long-only portfolio construction with explicit rebalance rules
+- daily NAV simulation with transaction cost modeling
+- walk-forward out-of-sample evaluation with configurable train/test windows
+- diagnostics for yearly breakdowns, walk-forward distributions, exposure behavior, and signal activity
+- markdown backtest report generation
+- SVG equity curve and drawdown chart generation
+- a lightweight Streamlit demo app for browsing local artifacts and backtest outputs
+- unit and integration tests around the main workflow
 
-1. richer data ingestion coverage for Taiwan equities
-2. signal generation for cross-sectional or rules-based strategies
-3. more advanced portfolio construction with richer constraints
-4. more realistic backtesting assumptions such as slippage calibration and execution timing variants
-5. reporting with performance and risk summaries
-6. paper execution for dry-run order simulation
-7. broker execution once the research workflow is stable
+## Major Modules
 
-## Data Source Notes
+- `src/tw_quant/data/`: ingestion, normalization, storage, and local dataset loading
+- `src/tw_quant/signals/`: daily signal generation and signal panel loading
+- `src/tw_quant/portfolio/`: target weight construction and weight propagation
+- `src/tw_quant/backtest/`: return simulation and metric calculation
+- `src/tw_quant/reporting/`: markdown reports and SVG performance charts
+- `src/tw_quant/pipelines/`: thin orchestration layer used by the CLI
+- `app/`: local Streamlit demo for showing project artifacts interactively
 
-The v1 data layer is built around FinMind:
+## Sample Results
 
-- equities and ETFs such as `2330` and `0050` use `TaiwanStockPrice`
-- the default benchmark uses `TaiwanStockTotalReturnIndex` with `TAIEX`
+Example backtest from the current repository artifacts:
 
-Important limitation:
+- project: `tw_quant_v1`
+- period: `2014-01-01` to `2026-03-10`
+- tradable symbols: `2330`, `0050`
+- benchmark: `TAIEX`
+- rebalance frequency: monthly
 
-- the chosen FinMind benchmark dataset provides a daily price-like index series, not full OHLCV bars
-- the normalized benchmark output therefore maps that single price into `open/high/low/close` and leaves `volume` empty
+Headline metrics:
 
-This is deliberate for v1: it keeps the source practical and the architecture clean while making the limitation explicit.
+- final NAV: `1.078122`
+- cumulative return: `7.8122%`
+- annualized return: `0.6382%`
+- annualized volatility: `26.4214%`
+- Sharpe ratio: `0.2690`
+- max drawdown: `-76.3137%`
+- cumulative turnover: `38.000000`
 
-## Signal Layer Notes
+Current walk-forward out-of-sample headline metrics:
 
-The first signal layer reads locally normalized bars and writes a combined daily signal panel to `data/processed/signals/daily/signal_panel.csv`.
+- combined OOS period: `2015-01-09` to `2026-03-10`
+- walk-forward final NAV: `1.071010`
+- walk-forward cumulative return: `7.1010%`
+- walk-forward annualized return: `0.6391%`
+- walk-forward annualized volatility: `27.2575%`
+- walk-forward Sharpe ratio: `0.2786`
+- walk-forward max drawdown: `-77.1872%`
 
-Current signal set:
+Generated portfolio-facing artifacts:
 
-- moving-average trend signal
-- lookback momentum
-- rolling volatility filter
+- [Backtest Summary](data/processed/reports/tw_quant_v1/backtest_summary.md)
+- [Equity Curve SVG](data/processed/reports/tw_quant_v1/equity_curve.svg)
+- [Drawdown SVG](data/processed/reports/tw_quant_v1/drawdown.svg)
 
-The initial `signal_score` is intentionally simple: it averages the binary trend and momentum directions, then zeroes the score when the rolling volatility filter fails.
+The local demo app can display these artifacts directly and also show recent NAV rows, recent weights, and artifact status.
 
-## Backtest Layer Notes
+## Outputs Generated by the Pipeline
 
-The current backtest workflow reads:
+After running the stable workflow, the main outputs are:
 
-- normalized daily bars from `data/processed/market_data/daily/`
-- the generated signal panel from `data/processed/signals/daily/signal_panel.csv`
+- normalized daily bars in `data/processed/market_data/daily/`
+- signal panel in `data/processed/signals/daily/signal_panel.csv`
+- daily NAV in `data/processed/backtests/<project_name>/daily_nav.csv`
+- daily weights in `data/processed/backtests/<project_name>/daily_weights.csv`
+- walk-forward NAV in `data/processed/backtests/<project_name>/walkforward/walkforward_nav.csv`
+- walk-forward window summary in `data/processed/backtests/<project_name>/walkforward/window_summary.csv`
+- yearly diagnostics table in `data/processed/backtests/<project_name>/diagnostics/yearly_return_table.csv`
+- walk-forward diagnostics table in `data/processed/backtests/<project_name>/diagnostics/walkforward_window_diagnostics.csv`
+- symbol exposure summary in `data/processed/backtests/<project_name>/diagnostics/symbol_exposure_summary.csv`
+- signal diagnostics summary in `data/processed/backtests/<project_name>/diagnostics/signal_diagnostics.csv`
+- markdown report in `data/processed/reports/<project_name>/backtest_summary.md`
+- walk-forward markdown report in `data/processed/reports/<project_name>/walkforward/walkforward_summary.md`
+- diagnostics markdown report in `data/processed/reports/<project_name>/diagnostics/diagnostics_summary.md`
+- equity curve chart in `data/processed/reports/<project_name>/equity_curve.svg`
+- drawdown chart in `data/processed/reports/<project_name>/drawdown.svg`
+- interactive local demo app in `app/streamlit_app.py`
 
-The v1 portfolio rule is intentionally explicit:
+## Walk-Forward Evaluation
 
-- benchmark is loaded for reference but is not treated as a held asset
-- tradable symbols are selected from positive `signal_score` values
-- weights are equal-weight among selected symbols
-- rebalancing uses the first aligned trading day of each configured period
-- new weights become active on the next trading day to avoid lookahead bias
+The project now includes a lightweight walk-forward workflow so evaluation is not limited to a single full-period historical backtest.
 
-Current backtest outputs:
+For v1, the recommended design is an `expanding` window:
 
-- `data/processed/backtests/<project_name>/daily_nav.csv`
-- `data/processed/backtests/<project_name>/daily_weights.csv`
-- `data/processed/reports/<project_name>/backtest_summary.md`
-- `data/processed/reports/<project_name>/equity_curve.svg`
-- `data/processed/reports/<project_name>/drawdown.svg`
+- reserve an initial in-sample history window
+- evaluate the next out-of-sample test window
+- roll forward and repeat
+- aggregate only the out-of-sample results into a combined NAV series
+
+This matters because it makes the project look more like a real research system and less like a single in-sample result.
+
+Run it with:
+
+```bash
+uv run python -m tw_quant walkforward --config configs/settings.example.toml
+```
+
+## Local Demo App
+
+The repository includes a small Streamlit-based local demo interface for presentation and review.
+
+It is designed to help a reviewer quickly inspect:
+
+- what artifacts currently exist
+- current backtest summary metrics
+- generated equity curve and drawdown charts
+- recent weights and signal scores
+- recent NAV rows and timeseries behavior
+- a bilingual presentation view through Traditional Chinese / English language switching
+
+The demo is intentionally portfolio-oriented:
+
+- a top-level project summary
+- scan-friendly KPI cards
+- pipeline status and artifact freshness
+- latest portfolio snapshot
+- recent NAV and weight inspection tables
+
+Run it with:
+
+```bash
+uv run python -m streamlit run app/streamlit_app.py
+```
+
+The app reads existing local artifacts. It does not rerun ingestion, signal generation, or the backtest engine.
+
+## Why This Is a Meaningful CS Portfolio Project
+
+This project is stronger than a toy quant script because it demonstrates:
+
+- modular system design instead of notebook-only analysis
+- explicit data contracts and local storage conventions
+- deterministic pipeline stages that can be tested independently
+- realistic engineering tradeoffs around scope, extensibility, and maintainability
+- a direct path from research workflow to future paper trading or execution support
+
+It is also specific enough to be memorable: the project is about Taiwan equities, not a generic stock-market demo.
+
+## Current Limitations
+
+- the benchmark series uses a normalized TAIEX proxy source and does not include full OHLCV fields
+- the strategy logic is intentionally simple and long-only
+- the transaction cost model is bps-based and does not model lot size or fill mechanics
+- the project is local-file based and does not include a database layer
+- there is no paper execution monitoring or broker integration yet
+
+## Roadmap
+
+Short-to-medium term roadmap:
+
+1. richer Taiwan equity universe coverage and stronger data validation
+2. better ranking and portfolio sizing logic
+3. richer reporting and benchmark-relative analytics
+4. more realistic execution assumptions in the backtest engine
+5. paper trading built on top of the existing local pipeline
+6. future broker execution once the research workflow is stable
+
+## Documentation Guide
+
+Recommended files to open:
+
+- [Project Overview](docs/project_overview.md)
+- [Architecture Notes](docs/architecture.md)
+- [Latest Sample Backtest Report](data/processed/reports/tw_quant_v1/backtest_summary.md)
+- [Local Demo App](app/streamlit_app.py)
 
 ## Disclaimer
 

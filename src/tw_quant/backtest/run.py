@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +13,9 @@ from tw_quant.core.models import (
     BacktestResult,
     MarketDataset,
     NavRow,
+    PerformanceMetrics,
     PortfolioWeightRow,
+    SignalRow,
 )
 from tw_quant.data import load_market_dataset, prepare_data_paths
 from tw_quant.portfolio.construct import build_target_weights, determine_rebalance_dates, expand_daily_weights
@@ -20,8 +23,63 @@ from tw_quant.reporting.report import build_report
 from tw_quant.signals import load_signal_rows
 
 
+@dataclass(frozen=True, slots=True)
+class BacktestComputation:
+    market_dataset: MarketDataset
+    signal_rows: tuple[SignalRow, ...]
+    nav_rows: tuple[NavRow, ...]
+    weight_rows: tuple[PortfolioWeightRow, ...]
+    metrics: PerformanceMetrics
+    benchmark_final_nav: float
+    notes: tuple[str, ...]
+
+
 def run_backtest(config: BacktestConfig) -> BacktestResult:
     """Run the local-data backtest flow and persist daily artifacts."""
+
+    market_dataset, signal_rows = load_backtest_inputs(config)
+    computation = compute_backtest_data(
+        config=config,
+        market_dataset=market_dataset,
+        signal_rows=signal_rows,
+    )
+
+    output_dir = config.backtest.output_dir / config.project_name
+    nav_path = _write_nav_rows(output_dir / config.backtest.nav_file, list(computation.nav_rows))
+    weights_path = _write_weight_rows(output_dir / config.backtest.weights_file, list(computation.weight_rows))
+    report_dir = config.data_paths.reports_dir / config.project_name
+    report_path = report_dir / "backtest_summary.md"
+    equity_curve_path = report_dir / "equity_curve.svg"
+    drawdown_path = report_dir / "drawdown.svg"
+
+    result = BacktestResult(
+        project_name=config.project_name,
+        market=config.market,
+        universe=config.universe,
+        benchmark=config.benchmark,
+        tradable_symbols=config.portfolio.tradable_symbols,
+        rebalance_frequency=config.portfolio.rebalance_frequency,
+        trading_costs=config.trading_costs,
+        hold_cash_when_inactive=config.portfolio.hold_cash_when_inactive,
+        start_date=config.start_date,
+        end_date=config.end_date,
+        report_path=report_path,
+        nav_path=nav_path,
+        weights_path=weights_path,
+        equity_curve_path=equity_curve_path,
+        drawdown_path=drawdown_path,
+        metrics=computation.metrics,
+        final_nav=computation.nav_rows[-1].nav if computation.nav_rows else config.backtest.initial_nav,
+        benchmark_final_nav=computation.benchmark_final_nav,
+        status="local-data backtest completed",
+        notes=computation.notes,
+    )
+    build_report(result)
+    return result
+
+
+def load_backtest_inputs(config: BacktestConfig) -> tuple[MarketDataset, list[SignalRow]]:
+    """Load aligned market bars and signal rows for a backtest configuration."""
 
     prepare_data_paths(config.data_paths)
 
@@ -39,6 +97,15 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         end_date=config.end_date,
         aligned_dates=market_dataset.aligned_dates,
     )
+    return market_dataset, signal_rows
+
+
+def compute_backtest_data(
+    config: BacktestConfig,
+    market_dataset: MarketDataset,
+    signal_rows: list[SignalRow],
+) -> BacktestComputation:
+    """Run the core portfolio/backtest calculation from already loaded local inputs."""
 
     rebalance_dates = determine_rebalance_dates(
         market_dataset.aligned_dates,
@@ -61,16 +128,20 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         applied_weights_by_date=applied_weights_by_date,
         target_weights_by_date=target_weights_by_date,
     )
-
-    output_dir = config.backtest.output_dir / config.project_name
-    nav_path = _write_nav_rows(output_dir / config.backtest.nav_file, nav_rows)
-    weights_path = _write_weight_rows(output_dir / config.backtest.weights_file, weight_rows)
-    report_dir = config.data_paths.reports_dir / config.project_name
-    report_path = report_dir / "backtest_summary.md"
-    equity_curve_path = report_dir / "equity_curve.svg"
-    drawdown_path = report_dir / "drawdown.svg"
     metrics = compute_metrics(nav_rows, config.backtest.initial_nav)
+    notes = _build_backtest_notes(config, market_dataset)
+    return BacktestComputation(
+        market_dataset=market_dataset,
+        signal_rows=tuple(signal_rows),
+        nav_rows=tuple(nav_rows),
+        weight_rows=tuple(weight_rows),
+        metrics=metrics,
+        benchmark_final_nav=benchmark_final_nav,
+        notes=notes,
+    )
 
+
+def _build_backtest_notes(config: BacktestConfig, market_dataset: MarketDataset) -> tuple[str, ...]:
     notes = list(market_dataset.notes)
     notes.append(
         f"再平衡頻率使用 {config.portfolio.rebalance_frequency}，且以每個週期的第一個共同交易日作為換倉訊號日。"
@@ -78,31 +149,7 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
     notes.append("換倉在當日收盤後生效，下一個交易日才開始承擔新權重的報酬，以避免 lookahead bias。")
     if config.portfolio.hold_cash_when_inactive:
         notes.append("當沒有標的通過訊號門檻時，投資組合會保留現金部位。")
-
-    result = BacktestResult(
-        project_name=config.project_name,
-        market=config.market,
-        universe=config.universe,
-        benchmark=config.benchmark,
-        tradable_symbols=config.portfolio.tradable_symbols,
-        rebalance_frequency=config.portfolio.rebalance_frequency,
-        trading_costs=config.trading_costs,
-        hold_cash_when_inactive=config.portfolio.hold_cash_when_inactive,
-        start_date=config.start_date,
-        end_date=config.end_date,
-        report_path=report_path,
-        nav_path=nav_path,
-        weights_path=weights_path,
-        equity_curve_path=equity_curve_path,
-        drawdown_path=drawdown_path,
-        metrics=metrics,
-        final_nav=nav_rows[-1].nav if nav_rows else config.backtest.initial_nav,
-        benchmark_final_nav=benchmark_final_nav,
-        status="local-data backtest completed",
-        notes=tuple(notes),
-    )
-    build_report(result)
-    return result
+    return tuple(notes)
 
 
 def _simulate_nav(
