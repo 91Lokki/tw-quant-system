@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import csv
+from datetime import date
 from math import sqrt
 from pathlib import Path
 from statistics import fmean, pstdev
 
-from tw_quant.core.models import BacktestConfig
-from tw_quant.core.models import MarketDataset, SignalConfig, SignalRow
+from tw_quant.core.models import (
+    BacktestConfig,
+    CrossSectionalSignalRow,
+    MarketDataset,
+    NormalizedBar,
+    SignalConfig,
+    SignalRow,
+    UniverseMembershipRow,
+)
+from tw_quant.data.store import read_normalized_csv
 
 
 SIGNAL_COLUMNS = (
@@ -23,6 +32,19 @@ SIGNAL_COLUMNS = (
     "volatility_n",
     "volatility_filter",
     "signal_score",
+)
+
+CROSS_SECTIONAL_SIGNAL_COLUMNS = (
+    "date",
+    "symbol",
+    "close",
+    "avg_traded_value_60d",
+    "liquidity_rank",
+    "momentum_126",
+    "volatility_20",
+    "signal_score",
+    "factor_rank",
+    "universe_name",
 )
 
 
@@ -96,6 +118,55 @@ def write_signal_rows(path: Path, rows: list[SignalRow]) -> Path:
     return path
 
 
+def build_cross_sectional_signal_rows(
+    normalized_dir: Path,
+    membership_rows: list[UniverseMembershipRow],
+    momentum_window: int,
+    volatility_window: int,
+) -> list[CrossSectionalSignalRow]:
+    """Build a monthly volatility-adjusted momentum panel for top-liquidity members."""
+
+    unique_symbols = sorted({row.symbol for row in membership_rows})
+    bars_by_symbol = {symbol: read_normalized_csv(normalized_dir / f"{symbol}.csv") for symbol in unique_symbols}
+
+    provisional_rows: list[CrossSectionalSignalRow] = []
+    membership_by_date: dict[date, list[UniverseMembershipRow]] = {}
+    for row in membership_rows:
+        membership_by_date.setdefault(row.date, []).append(row)
+
+    for rebalance_date in sorted(membership_by_date):
+        day_rows: list[CrossSectionalSignalRow] = []
+        for membership_row in sorted(
+            membership_by_date[rebalance_date],
+            key=lambda row: (row.liquidity_rank, row.symbol),
+        ):
+            signal_row = _build_cross_sectional_signal_row(
+                membership_row=membership_row,
+                bars=bars_by_symbol[membership_row.symbol],
+                momentum_window=momentum_window,
+                volatility_window=volatility_window,
+            )
+            if signal_row is not None:
+                day_rows.append(signal_row)
+
+        ranked_rows = _assign_factor_ranks(day_rows)
+        provisional_rows.extend(ranked_rows)
+
+    return provisional_rows
+
+
+def write_cross_sectional_signal_rows(path: Path, rows: list[CrossSectionalSignalRow]) -> Path:
+    """Write the monthly cross-sectional signal panel."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(CROSS_SECTIONAL_SIGNAL_COLUMNS))
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row.to_csv_row())
+    return path
+
+
 def _rolling_mean(values: list[float], end_index: int, window: int) -> float | None:
     if end_index + 1 < window:
         return None
@@ -161,3 +232,78 @@ def _volatility_filter(volatility_n: float | None, volatility_cap: float) -> int
     if volatility_n is None:
         return 0
     return 1 if volatility_n <= volatility_cap else 0
+
+
+def _build_cross_sectional_signal_row(
+    membership_row: UniverseMembershipRow,
+    bars: list[NormalizedBar],
+    momentum_window: int,
+    volatility_window: int,
+) -> CrossSectionalSignalRow | None:
+    symbol_bars = list(bars)
+    dates = [bar.date for bar in symbol_bars]
+    try:
+        end_index = dates.index(membership_row.date)
+    except ValueError:
+        return None
+
+    closes = [bar.close for bar in symbol_bars]
+    returns = _daily_returns(closes)
+    momentum_126 = _momentum(closes, end_index, momentum_window)
+    volatility_20 = _rolling_raw_volatility(returns, end_index, volatility_window)
+    signal_score = None
+    if momentum_126 is not None and volatility_20 is not None and volatility_20 > 0:
+        signal_score = momentum_126 / volatility_20
+
+    return CrossSectionalSignalRow(
+        date=membership_row.date,
+        symbol=membership_row.symbol,
+        close=closes[end_index],
+        avg_traded_value_60d=membership_row.avg_traded_value_60d,
+        liquidity_rank=membership_row.liquidity_rank,
+        momentum_126=momentum_126,
+        volatility_20=volatility_20,
+        signal_score=signal_score,
+        factor_rank=None,
+        universe_name=membership_row.universe_name,
+    )
+
+
+def _assign_factor_ranks(rows: list[CrossSectionalSignalRow]) -> list[CrossSectionalSignalRow]:
+    valid_rows = sorted(
+        [row for row in rows if row.signal_score is not None],
+        key=lambda row: (-float(row.signal_score), row.symbol),
+    )
+    rank_lookup = {row.symbol: rank for rank, row in enumerate(valid_rows, start=1)}
+
+    ranked_rows: list[CrossSectionalSignalRow] = []
+    for row in rows:
+        ranked_rows.append(
+            CrossSectionalSignalRow(
+                date=row.date,
+                symbol=row.symbol,
+                close=row.close,
+                avg_traded_value_60d=row.avg_traded_value_60d,
+                liquidity_rank=row.liquidity_rank,
+                momentum_126=row.momentum_126,
+                volatility_20=row.volatility_20,
+                signal_score=row.signal_score,
+                factor_rank=rank_lookup.get(row.symbol),
+                universe_name=row.universe_name,
+            )
+        )
+    return ranked_rows
+
+
+def _rolling_raw_volatility(
+    returns: list[float | None],
+    end_index: int,
+    window: int,
+) -> float | None:
+    if end_index < window:
+        return None
+    window_slice = returns[end_index - window + 1 : end_index + 1]
+    if any(value is None for value in window_slice):
+        return None
+    clean_values = [float(value) for value in window_slice if value is not None]
+    return float(pstdev(clean_values))

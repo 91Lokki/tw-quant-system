@@ -48,6 +48,7 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(len(dataset.bars_by_symbol["2330"]), 2)
             self.assertEqual(len(dataset.bars_by_symbol["0050"]), 2)
             self.assertEqual(dataset.row_count, 4)
+            self.assertIsNone(dataset.bars_by_symbol["2330"][0].traded_value)
 
     def test_load_market_dataset_validates_required_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

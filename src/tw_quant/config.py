@@ -13,8 +13,10 @@ from tw_quant.core.models import (
     DataPaths,
     IngestConfig,
     PortfolioConfig,
+    RiskControlConfig,
     SignalConfig,
     TradingCosts,
+    UniverseConfig,
     WalkForwardConfig,
 )
 
@@ -34,6 +36,8 @@ def load_settings(path: str | Path) -> AppConfig:
         payload = tomllib.load(handle)
 
     project_root = _resolve_path(payload["paths"]["project_root"], settings_path.parent)
+    research_payload = payload.get("research", {})
+    research_branch = str(research_payload.get("branch", "baseline_failure_case")).lower()
     data_paths = DataPaths(
         project_root=project_root,
         raw_dir=_resolve_path(payload["paths"]["raw"], project_root),
@@ -48,7 +52,7 @@ def load_settings(path: str | Path) -> AppConfig:
     ingest_payload = payload["ingest"]
     ingest_config = IngestConfig(
         provider=str(ingest_payload["provider"]).lower(),
-        symbols=tuple(str(symbol) for symbol in ingest_payload["symbols"]),
+        symbols=tuple(str(symbol) for symbol in ingest_payload.get("symbols", ())),
         benchmark=str(payload["benchmark"]),
         refresh=bool(ingest_payload.get("refresh", False)),
         storage_format=str(ingest_payload.get("storage_format", "csv")).lower(),
@@ -66,9 +70,35 @@ def load_settings(path: str | Path) -> AppConfig:
             else None
         ),
     )
+    raw_universe_payload = payload.get("universe_selection", {})
+    universe_payload = raw_universe_payload if isinstance(raw_universe_payload, dict) else {}
+    universe_config = UniverseConfig(
+        candidate_market=str(universe_payload.get("candidate_market", "twse")).lower(),
+        selection_rule=str(universe_payload.get("selection_rule", "top_liquidity")).lower(),
+        liquidity_lookback_days=int(universe_payload.get("liquidity_lookback_days", 60)),
+        top_n=int(universe_payload.get("top_n", 50)),
+        reconstitution_frequency=str(
+            universe_payload.get("reconstitution_frequency", "monthly")
+        ).lower(),
+        metadata_output_dir=_resolve_path(
+            str(universe_payload.get("metadata_output_subdir", "metadata")),
+            data_paths.processed_dir,
+        ),
+        membership_output_dir=_resolve_path(
+            str(universe_payload.get("membership_output_subdir", "universe")),
+            data_paths.processed_dir,
+        ),
+        membership_file=str(
+            universe_payload.get(
+                "membership_file",
+                "tw_top50_liquidity_membership.csv",
+            )
+        ),
+    )
     signals_payload = payload["signals"]
     signals_config = SignalConfig(
-        enabled_symbols=tuple(str(symbol) for symbol in signals_payload["enabled_symbols"]),
+        mode=str(signals_payload.get("mode", "time_series_baseline")).lower(),
+        enabled_symbols=tuple(str(symbol) for symbol in signals_payload.get("enabled_symbols", ())),
         benchmark=str(signals_payload.get("benchmark", payload["benchmark"])),
         ma_fast_window=int(signals_payload["ma_fast_window"]),
         ma_slow_window=int(signals_payload["ma_slow_window"]),
@@ -88,14 +118,25 @@ def load_settings(path: str | Path) -> AppConfig:
     )
     portfolio_payload = payload["portfolio"]
     portfolio_config = PortfolioConfig(
-        tradable_symbols=tuple(str(symbol) for symbol in portfolio_payload["tradable_symbols"]),
+        tradable_symbols=tuple(str(symbol) for symbol in portfolio_payload.get("tradable_symbols", ())),
         benchmark=str(portfolio_payload.get("benchmark", payload["benchmark"])),
         rebalance_frequency=str(portfolio_payload.get("rebalance_frequency", "monthly")).lower(),
         weighting=str(portfolio_payload.get("weighting", "equal")).lower(),
         min_signal_score=float(portfolio_payload.get("min_signal_score", 0.0)),
-        max_positions=int(portfolio_payload.get("max_positions", len(signals_config.enabled_symbols))),
+        max_positions=int(portfolio_payload.get("max_positions", max(len(signals_config.enabled_symbols), 1))),
         max_weight=float(portfolio_payload.get("max_weight", 1.0)),
         hold_cash_when_inactive=bool(portfolio_payload.get("hold_cash_when_inactive", True)),
+    )
+    risk_controls_payload = payload.get("risk_controls", {})
+    risk_controls = RiskControlConfig(
+        benchmark_filter_enabled=bool(
+            risk_controls_payload.get("benchmark_filter_enabled", False)
+        ),
+        benchmark_ma_window=int(risk_controls_payload.get("benchmark_ma_window", 200)),
+        defensive_mode=str(risk_controls_payload.get("defensive_mode", "cash")).lower(),
+        rebalance_cadence_months=int(
+            risk_controls_payload.get("rebalance_cadence_months", 1)
+        ),
     )
     backtest_payload = payload["backtest"]
     backtest_config = BacktestEngineConfig(
@@ -131,6 +172,7 @@ def load_settings(path: str | Path) -> AppConfig:
     )
     config = AppConfig(
         project_name=str(payload["project_name"]),
+        research_branch=research_branch,
         market=str(payload["market"]),
         universe=str(payload["universe"]),
         benchmark=str(payload["benchmark"]),
@@ -139,25 +181,36 @@ def load_settings(path: str | Path) -> AppConfig:
         data_paths=data_paths,
         trading_costs=trading_costs,
         ingest=ingest_config,
+        universe_config=universe_config,
         signals=signals_config,
         portfolio=portfolio_config,
+        risk_controls=risk_controls,
         backtest=backtest_config,
         walkforward=walkforward_config,
     )
 
     if config.start_date > config.end_date:
         raise ValueError("start_date must be on or before end_date")
-    if not config.ingest.symbols:
+    if config.research_branch not in {"baseline_failure_case", "tw_top50_liquidity_cross_sectional"}:
+        raise ValueError(
+            "research.branch must be one of baseline_failure_case, tw_top50_liquidity_cross_sectional"
+        )
+    if config.signals.mode not in {"time_series_baseline", "cross_sectional_vol_adj_momentum"}:
+        raise ValueError(
+            "signals.mode must be one of time_series_baseline, cross_sectional_vol_adj_momentum"
+        )
+    if config.research_branch == "baseline_failure_case" and not config.ingest.symbols:
         raise ValueError("ingest.symbols must contain at least one symbol")
     if config.ingest.storage_format != "csv":
         raise ValueError("Only csv storage_format is supported in v1")
-    if not config.signals.enabled_symbols:
-        raise ValueError("signals.enabled_symbols must contain at least one symbol")
     if config.signals.ma_fast_window <= 0:
         raise ValueError("signals.ma_fast_window must be positive")
     if config.signals.ma_slow_window <= 0:
         raise ValueError("signals.ma_slow_window must be positive")
-    if config.signals.ma_fast_window >= config.signals.ma_slow_window:
+    if (
+        config.signals.mode == "time_series_baseline"
+        and config.signals.ma_fast_window >= config.signals.ma_slow_window
+    ):
         raise ValueError("signals.ma_fast_window must be smaller than signals.ma_slow_window")
     if config.signals.momentum_window <= 0:
         raise ValueError("signals.momentum_window must be positive")
@@ -165,8 +218,16 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError("signals.volatility_window must be positive")
     if config.signals.volatility_cap <= 0:
         raise ValueError("signals.volatility_cap must be positive")
-    if not config.portfolio.tradable_symbols:
-        raise ValueError("portfolio.tradable_symbols must contain at least one symbol")
+    if config.universe_config.candidate_market != "twse":
+        raise ValueError("universe.candidate_market must be twse in Phase A")
+    if config.universe_config.selection_rule != "top_liquidity":
+        raise ValueError("universe.selection_rule must be top_liquidity in Phase A")
+    if config.universe_config.liquidity_lookback_days <= 0:
+        raise ValueError("universe.liquidity_lookback_days must be positive")
+    if config.universe_config.top_n <= 0:
+        raise ValueError("universe.top_n must be positive")
+    if config.universe_config.reconstitution_frequency != "monthly":
+        raise ValueError("universe.reconstitution_frequency must be monthly in Phase A")
     if config.portfolio.rebalance_frequency not in {"daily", "weekly", "monthly"}:
         raise ValueError("portfolio.rebalance_frequency must be one of daily, weekly, monthly")
     if config.portfolio.weighting != "equal":
@@ -175,14 +236,14 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError("portfolio.max_positions must be positive")
     if config.portfolio.max_weight <= 0 or config.portfolio.max_weight > 1:
         raise ValueError("portfolio.max_weight must be between 0 and 1")
-    if config.portfolio.benchmark in config.portfolio.tradable_symbols:
-        raise ValueError("portfolio.benchmark must not appear in portfolio.tradable_symbols")
-    missing_signal_symbols = set(config.portfolio.tradable_symbols) - set(config.signals.enabled_symbols)
-    if missing_signal_symbols:
-        missing_text = ", ".join(sorted(missing_signal_symbols))
+    if config.risk_controls.benchmark_ma_window <= 0:
+        raise ValueError("risk_controls.benchmark_ma_window must be positive")
+    if config.risk_controls.defensive_mode not in {"cash", "half_exposure", "top5"}:
         raise ValueError(
-            f"portfolio.tradable_symbols must be covered by signals.enabled_symbols: {missing_text}"
+            "risk_controls.defensive_mode must be one of cash, half_exposure, top5"
         )
+    if config.risk_controls.rebalance_cadence_months <= 0:
+        raise ValueError("risk_controls.rebalance_cadence_months must be positive")
     if config.backtest.initial_nav <= 0:
         raise ValueError("backtest.initial_nav must be positive")
     if config.walkforward.window_type not in {"expanding", "rolling"}:
@@ -197,6 +258,19 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError(
             "walkforward.minimum_history_days must be at least as large as signals.ma_slow_window"
         )
+    if config.signals.mode == "time_series_baseline":
+        if not config.signals.enabled_symbols:
+            raise ValueError("signals.enabled_symbols must contain at least one symbol")
+        if not config.portfolio.tradable_symbols:
+            raise ValueError("portfolio.tradable_symbols must contain at least one symbol")
+        if config.portfolio.benchmark in config.portfolio.tradable_symbols:
+            raise ValueError("portfolio.benchmark must not appear in portfolio.tradable_symbols")
+        missing_signal_symbols = set(config.portfolio.tradable_symbols) - set(config.signals.enabled_symbols)
+        if missing_signal_symbols:
+            missing_text = ", ".join(sorted(missing_signal_symbols))
+            raise ValueError(
+                f"portfolio.tradable_symbols must be covered by signals.enabled_symbols: {missing_text}"
+            )
 
     return config
 

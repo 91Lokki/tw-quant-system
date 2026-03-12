@@ -317,6 +317,151 @@ class CliTests(unittest.TestCase):
             self.assertTrue(output_path.exists())
             self.assertIn("訊號產生完成", result.stdout)
 
+    def test_cross_sectional_signals_command_writes_membership_and_signal_panel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            (temp_root / "artifacts" / "market_data" / "daily").mkdir(parents=True, exist_ok=True)
+            (temp_root / "artifacts" / "metadata").mkdir(parents=True, exist_ok=True)
+            (temp_root / "artifacts" / "universe").mkdir(parents=True, exist_ok=True)
+            _write_metadata_csv(
+                temp_root / "artifacts" / "metadata" / "twse_usable_stock_info.csv",
+                [
+                    ["1101", "Taiwan Cement", "twse", "Cement", "2024-01-02"],
+                    ["2317", "Hon Hai", "twse", "Electronic", "2024-01-02"],
+                    ["2330", "TSMC", "twse", "Semiconductor", "2024-01-02"],
+                ],
+            )
+            _write_normalized_csv_with_traded_value(
+                temp_root / "artifacts" / "market_data" / "daily" / "TAIEX.csv",
+                [
+                    ["2024-01-02", "TAIEX", "18000", "18000", "18000", "18000", "", ""],
+                    ["2024-01-03", "TAIEX", "18010", "18010", "18010", "18010", "", ""],
+                    ["2024-02-01", "TAIEX", "18100", "18100", "18100", "18100", "", ""],
+                ],
+            )
+            _write_normalized_csv_with_traded_value(
+                temp_root / "artifacts" / "market_data" / "daily" / "2330.csv",
+                [
+                    ["2024-01-02", "2330", "100", "100", "100", "100", "1000", "100"],
+                    ["2024-01-03", "2330", "110", "110", "110", "110", "1000", "120"],
+                    ["2024-02-01", "2330", "121", "121", "121", "121", "1000", "140"],
+                ],
+            )
+            _write_normalized_csv_with_traded_value(
+                temp_root / "artifacts" / "market_data" / "daily" / "2317.csv",
+                [
+                    ["2024-01-02", "2317", "100", "100", "100", "100", "1000", "150"],
+                    ["2024-01-03", "2317", "101", "101", "101", "101", "1000", "160"],
+                    ["2024-02-01", "2317", "102", "102", "102", "102", "1000", "170"],
+                ],
+            )
+            _write_normalized_csv_with_traded_value(
+                temp_root / "artifacts" / "market_data" / "daily" / "1101.csv",
+                [
+                    ["2024-01-02", "1101", "50", "50", "50", "50", "1000", "80"],
+                    ["2024-01-03", "1101", "51", "51", "51", "51", "1000", "90"],
+                    ["2024-02-01", "1101", "52", "52", "52", "52", "1000", "95"],
+                ],
+            )
+
+            config_path = temp_root / "settings.toml"
+            config_path.write_text(
+                textwrap.dedent(
+                    """
+                    project_name = "tw_top50_liquidity_v1"
+                    market = "TW cash equities"
+                    universe = "twse_top50_liquidity"
+                    benchmark = "TAIEX"
+                    start_date = "2024-01-02"
+                    end_date = "2024-02-01"
+
+                    [research]
+                    branch = "tw_top50_liquidity_cross_sectional"
+
+                    [paths]
+                    project_root = "."
+                    raw = "artifacts/raw"
+                    processed = "artifacts"
+                    reports = "artifacts/reports"
+
+                    [costs]
+                    commission_bps = 10.0
+                    tax_bps = 30.0
+                    slippage_bps = 5.0
+
+                    [ingest]
+                    provider = "finmind"
+                    symbols = []
+                    refresh = false
+                    storage_format = "csv"
+                    token_env_var = "FINMIND_API_TOKEN"
+                    raw_cache_subdir = "finmind"
+                    normalized_subdir = "market_data/daily"
+
+                    [universe_selection]
+                    candidate_market = "twse"
+                    selection_rule = "top_liquidity"
+                    liquidity_lookback_days = 2
+                    top_n = 2
+                    reconstitution_frequency = "monthly"
+                    metadata_output_subdir = "metadata"
+                    membership_output_subdir = "universe"
+                    membership_file = "tw_top50_liquidity_membership.csv"
+
+                    [signals]
+                    mode = "cross_sectional_vol_adj_momentum"
+                    enabled_symbols = []
+                    benchmark = "TAIEX"
+                    ma_fast_window = 20
+                    ma_slow_window = 60
+                    momentum_window = 2
+                    volatility_window = 2
+                    volatility_cap = 0.35
+                    align_by_date = false
+                    input_subdir = "market_data/daily"
+                    output_subdir = "signals/monthly"
+                    output_file = "cross_sectional_signal_panel.csv"
+
+                    [portfolio]
+                    tradable_symbols = []
+                    benchmark = "TAIEX"
+                    rebalance_frequency = "monthly"
+                    weighting = "equal"
+                    min_signal_score = 0.0
+                    max_positions = 10
+                    max_weight = 0.1
+                    hold_cash_when_inactive = true
+
+                    [backtest]
+                    initial_nav = 1.0
+                    bar_input_subdir = "market_data/daily"
+                    signal_input_subdir = "signals/monthly"
+                    signal_input_file = "cross_sectional_signal_panel.csv"
+                    output_subdir = "backtests"
+                    nav_file = "daily_nav.csv"
+                    weights_file = "daily_weights.csv"
+
+                    [walkforward]
+                    enabled = false
+                    window_type = "expanding"
+                    train_window_days = 252
+                    test_window_days = 63
+                    minimum_history_days = 252
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = run_cli("signals", "--config", str(config_path))
+
+            membership_path = temp_root / "artifacts" / "universe" / "tw_top50_liquidity_membership.csv"
+            output_path = temp_root / "artifacts" / "signals" / "monthly" / "cross_sectional_signal_panel.csv"
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertTrue(membership_path.exists())
+            self.assertTrue(output_path.exists())
+            self.assertIn("cross_sectional_vol_adj_momentum", result.stdout)
+
     def test_walkforward_command_writes_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
@@ -611,6 +756,26 @@ def _write_normalized_csv(path: Path, rows: list[list[str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "date,symbol,open,high,low,close,volume\n" + "\n".join(",".join(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_normalized_csv_with_traded_value(path: Path, rows: list[list[str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "date,symbol,open,high,low,close,volume,traded_value\n"
+        + "\n".join(",".join(row) for row in rows)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_metadata_csv(path: Path, rows: list[list[str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "stock_id,stock_name,type,industry_category,date\n"
+        + "\n".join(",".join(row) for row in rows)
+        + "\n",
         encoding="utf-8",
     )
 

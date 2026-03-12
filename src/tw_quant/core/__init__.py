@@ -5,6 +5,7 @@ from tw_quant.core.models import (
     BacktestEngineConfig,
     BacktestConfig,
     BacktestResult,
+    CrossSectionalSignalRow,
     DataPaths,
     IngestConfig,
     IngestResult,
@@ -19,6 +20,8 @@ from tw_quant.core.models import (
     SignalResult,
     SignalRow,
     TradingCosts,
+    UniverseConfig,
+    UniverseMembershipRow,
 )
 
 __all__ = [
@@ -26,6 +29,7 @@ __all__ = [
     "BacktestEngineConfig",
     "BacktestConfig",
     "BacktestResult",
+    "CrossSectionalSignalRow",
     "DataPaths",
     "IngestConfig",
     "IngestResult",
@@ -40,4 +44,6 @@ __all__ = [
     "SignalResult",
     "SignalRow",
     "TradingCosts",
+    "UniverseConfig",
+    "UniverseMembershipRow",
 ]

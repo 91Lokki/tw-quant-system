@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from tw_quant.backtest.cross_sectional import (
+    build_cross_sectional_variant_configs,
+    CrossSectionalBacktestComputation,
+    CrossSectionalBacktestInputs,
+    compute_cross_sectional_backtest_data,
+    load_cross_sectional_backtest_inputs,
+)
 from tw_quant.backtest.metrics import compute_metrics
 from tw_quant.core.models import (
     BacktestConfig,
@@ -37,12 +44,27 @@ class BacktestComputation:
 def run_backtest(config: BacktestConfig) -> BacktestResult:
     """Run the local-data backtest flow and persist daily artifacts."""
 
-    market_dataset, signal_rows = load_backtest_inputs(config)
-    computation = compute_backtest_data(
-        config=config,
-        market_dataset=market_dataset,
-        signal_rows=signal_rows,
-    )
+    tradable_symbols: tuple[str, ...]
+    comparison_path: Path | None = None
+    if config.research_branch == "tw_top50_liquidity_cross_sectional":
+        inputs = load_cross_sectional_backtest_inputs(config)
+        computation = compute_cross_sectional_backtest_data(config, inputs)
+        tradable_symbols = computation.participating_symbols
+        comparison_path = _write_cross_sectional_risk_comparison(
+            path=config.backtest.output_dir / config.project_name / "risk_comparison.csv",
+            variants=build_cross_sectional_variant_configs(config),
+            inputs=inputs,
+            primary_computation=computation,
+            config=config,
+        )
+    else:
+        market_dataset, signal_rows = load_backtest_inputs(config)
+        computation = compute_backtest_data(
+            config=config,
+            market_dataset=market_dataset,
+            signal_rows=signal_rows,
+        )
+        tradable_symbols = config.portfolio.tradable_symbols
 
     output_dir = config.backtest.output_dir / config.project_name
     nav_path = _write_nav_rows(output_dir / config.backtest.nav_file, list(computation.nav_rows))
@@ -57,10 +79,14 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         market=config.market,
         universe=config.universe,
         benchmark=config.benchmark,
-        tradable_symbols=config.portfolio.tradable_symbols,
+        tradable_symbols=tradable_symbols,
         rebalance_frequency=config.portfolio.rebalance_frequency,
+        rebalance_cadence_months=config.risk_controls.rebalance_cadence_months,
         trading_costs=config.trading_costs,
         hold_cash_when_inactive=config.portfolio.hold_cash_when_inactive,
+        benchmark_filter_enabled=config.risk_controls.benchmark_filter_enabled,
+        benchmark_ma_window=config.risk_controls.benchmark_ma_window,
+        defensive_mode=config.risk_controls.defensive_mode,
         start_date=config.start_date,
         end_date=config.end_date,
         report_path=report_path,
@@ -68,6 +94,7 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         weights_path=weights_path,
         equity_curve_path=equity_curve_path,
         drawdown_path=drawdown_path,
+        comparison_path=comparison_path,
         metrics=computation.metrics,
         final_nav=computation.nav_rows[-1].nav if computation.nav_rows else config.backtest.initial_nav,
         benchmark_final_nav=computation.benchmark_final_nav,
@@ -150,6 +177,79 @@ def _build_backtest_notes(config: BacktestConfig, market_dataset: MarketDataset)
     if config.portfolio.hold_cash_when_inactive:
         notes.append("當沒有標的通過訊號門檻時，投資組合會保留現金部位。")
     return tuple(notes)
+
+
+def _write_cross_sectional_risk_comparison(
+    path: Path,
+    variants: tuple[tuple[str, BacktestConfig], ...],
+    inputs: CrossSectionalBacktestInputs,
+    primary_computation: CrossSectionalBacktestComputation,
+    config: BacktestConfig,
+) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    primary_signature = (
+        config.risk_controls.benchmark_filter_enabled,
+        config.risk_controls.benchmark_ma_window,
+        config.risk_controls.defensive_mode,
+        config.risk_controls.rebalance_cadence_months,
+    )
+
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "label",
+                "benchmark_filter_enabled",
+                "benchmark_ma_window",
+                "defensive_mode",
+                "rebalance_cadence_months",
+                "final_nav",
+                "benchmark_final_nav",
+                "cumulative_return",
+                "annualized_return",
+                "annualized_volatility",
+                "max_drawdown",
+                "sharpe_ratio",
+                "turnover",
+            ],
+        )
+        writer.writeheader()
+        for label, variant_config in variants:
+            variant_signature = (
+                variant_config.risk_controls.benchmark_filter_enabled,
+                variant_config.risk_controls.benchmark_ma_window,
+                variant_config.risk_controls.defensive_mode,
+                variant_config.risk_controls.rebalance_cadence_months,
+            )
+            if variant_signature == primary_signature:
+                variant_computation = primary_computation
+            else:
+                variant_computation = compute_cross_sectional_backtest_data(
+                    variant_config,
+                    inputs,
+                )
+            writer.writerow(
+                {
+                    "label": label,
+                    "benchmark_filter_enabled": str(
+                        variant_config.risk_controls.benchmark_filter_enabled
+                    ).lower(),
+                    "benchmark_ma_window": str(variant_config.risk_controls.benchmark_ma_window),
+                    "defensive_mode": variant_config.risk_controls.defensive_mode,
+                    "rebalance_cadence_months": str(
+                        variant_config.risk_controls.rebalance_cadence_months
+                    ),
+                    "final_nav": f"{variant_computation.nav_rows[-1].nav}",
+                    "benchmark_final_nav": f"{variant_computation.benchmark_final_nav}",
+                    "cumulative_return": f"{variant_computation.metrics.cumulative_return}",
+                    "annualized_return": f"{variant_computation.metrics.annualized_return}",
+                    "annualized_volatility": f"{variant_computation.metrics.annualized_volatility}",
+                    "max_drawdown": f"{variant_computation.metrics.max_drawdown}",
+                    "sharpe_ratio": f"{variant_computation.metrics.sharpe_ratio}",
+                    "turnover": f"{variant_computation.metrics.turnover}",
+                }
+            )
+    return path
 
 
 def _simulate_nav(

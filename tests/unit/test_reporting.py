@@ -40,12 +40,16 @@ class ReportingTests(unittest.TestCase):
                 benchmark="TAIEX",
                 tradable_symbols=("2330", "0050"),
                 rebalance_frequency="monthly",
+                rebalance_cadence_months=1,
                 trading_costs=TradingCosts(
                     commission_bps=14.25,
                     tax_bps=30.0,
                     slippage_bps=5.0,
                 ),
                 hold_cash_when_inactive=True,
+                benchmark_filter_enabled=True,
+                benchmark_ma_window=200,
+                defensive_mode="cash",
                 start_date=date(2024, 1, 2),
                 end_date=date(2024, 1, 4),
                 report_path=report_dir / "backtest_summary.md",
@@ -53,6 +57,7 @@ class ReportingTests(unittest.TestCase):
                 weights_path=temp_root / "daily_weights.csv",
                 equity_curve_path=report_dir / "equity_curve.svg",
                 drawdown_path=report_dir / "drawdown.svg",
+                comparison_path=report_dir / "risk_comparison.csv",
                 metrics=PerformanceMetrics(
                     cumulative_return=0.02,
                     annualized_return=0.18,
@@ -78,6 +83,8 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("# demo Backtest Summary", report_text)
             self.assertIn("- Tradable Symbols: 2330, 0050", report_text)
             self.assertIn("- Rebalance Frequency: monthly", report_text)
+            self.assertIn("- Benchmark Regime Filter: enabled", report_text)
+            self.assertIn("- Risk Comparison CSV:", report_text)
             self.assertIn("![Equity Curve](equity_curve.svg)", report_text)
             self.assertIn("![Drawdown](drawdown.svg)", report_text)
             self.assertIn("## Known Limitations", report_text)

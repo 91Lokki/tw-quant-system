@@ -28,6 +28,7 @@ class NormalizeTests(unittest.TestCase):
                     "min": 589,
                     "close": 591,
                     "Trading_Volume": 12345678,
+                    "Trading_money": 987654321.0,
                 }
             ],
             raw_payload={"status": 200, "data": []},
@@ -35,7 +36,10 @@ class NormalizeTests(unittest.TestCase):
 
         rows = normalize_security_daily(payload)
 
-        self.assertEqual(NORMALIZED_BAR_COLUMNS, ("date", "symbol", "open", "high", "low", "close", "volume"))
+        self.assertEqual(
+            NORMALIZED_BAR_COLUMNS,
+            ("date", "symbol", "open", "high", "low", "close", "volume", "traded_value"),
+        )
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].date, date(2024, 1, 2))
         self.assertEqual(rows[0].symbol, "2330")
@@ -44,6 +48,7 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(rows[0].low, 589.0)
         self.assertEqual(rows[0].close, 591.0)
         self.assertEqual(rows[0].volume, 12345678)
+        self.assertEqual(rows[0].traded_value, 987654321.0)
 
     def test_normalize_benchmark_daily_maps_single_price_to_ohlc(self) -> None:
         payload = ProviderPayload(
@@ -68,6 +73,7 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(rows[0].low, 17853.76)
         self.assertEqual(rows[0].close, 17853.76)
         self.assertIsNone(rows[0].volume)
+        self.assertIsNone(rows[0].traded_value)
 
 
 if __name__ == "__main__":

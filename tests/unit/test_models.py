@@ -17,6 +17,7 @@ from tw_quant.core.models import (
     DataPaths,
     PerformanceMetrics,
     PortfolioConfig,
+    RiskControlConfig,
     TradingCosts,
     WalkForwardConfig,
 )
@@ -52,6 +53,12 @@ class ModelTests(unittest.TestCase):
                 max_weight=1.0,
                 hold_cash_when_inactive=True,
             ),
+            risk_controls=RiskControlConfig(
+                benchmark_filter_enabled=False,
+                benchmark_ma_window=200,
+                defensive_mode="cash",
+                rebalance_cadence_months=1,
+            ),
             backtest=BacktestEngineConfig(
                 initial_nav=1.0,
                 bar_input_dir=PROJECT_ROOT / "data" / "processed" / "market_data" / "daily",
@@ -79,12 +86,16 @@ class ModelTests(unittest.TestCase):
             benchmark="TAIEX",
             tradable_symbols=("2330", "0050"),
             rebalance_frequency="monthly",
+            rebalance_cadence_months=1,
             trading_costs=TradingCosts(
                 commission_bps=14.25,
                 tax_bps=30.0,
                 slippage_bps=5.0,
             ),
             hold_cash_when_inactive=True,
+            benchmark_filter_enabled=True,
+            benchmark_ma_window=200,
+            defensive_mode="cash",
             start_date=date(2021, 1, 1),
             end_date=date(2021, 12, 31),
             report_path=Path("data/processed/reports/demo/backtest_summary.md"),
@@ -92,6 +103,7 @@ class ModelTests(unittest.TestCase):
             weights_path=Path("data/processed/backtests/demo/daily_weights.csv"),
             equity_curve_path=Path("data/processed/reports/demo/equity_curve.svg"),
             drawdown_path=Path("data/processed/reports/demo/drawdown.svg"),
+            comparison_path=Path("data/processed/backtests/demo/risk_comparison.csv"),
             metrics=PerformanceMetrics(
                 cumulative_return=0.12,
                 annualized_return=0.11,
@@ -111,9 +123,11 @@ class ModelTests(unittest.TestCase):
 
         self.assertIn("Project: demo", summary)
         self.assertIn("Tradable Symbols: 2330, 0050", summary)
+        self.assertIn("Benchmark Filter Enabled: True", summary)
         self.assertIn("Status: local-data backtest completed", summary)
         self.assertIn("- First note.", summary)
         self.assertIn("回測完成", summary_zh)
+        self.assertIn("Benchmark regime filter: 開啟", summary_zh)
         self.assertIn("累積報酬: 12.00%", summary_zh)
         self.assertIn("權益曲線圖:", summary_zh)
 

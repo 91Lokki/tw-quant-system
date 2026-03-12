@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from tw_quant.core.models import MarketDataset, NormalizedBar
-from tw_quant.data.normalize import NORMALIZED_BAR_COLUMNS
+from tw_quant.data.normalize import REQUIRED_NORMALIZED_BAR_COLUMNS
 
 
 def load_market_dataset(
@@ -68,7 +68,9 @@ def _load_symbol_rows(
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
             raise ValueError(f"CSV header is missing in {path}.")
-        missing_columns = [column for column in NORMALIZED_BAR_COLUMNS if column not in reader.fieldnames]
+        missing_columns = [
+            column for column in REQUIRED_NORMALIZED_BAR_COLUMNS if column not in reader.fieldnames
+        ]
         if missing_columns:
             raise ValueError(f"Missing required columns in {path}: {', '.join(missing_columns)}")
 
@@ -99,6 +101,7 @@ def _parse_row(raw_row: dict[str, str], path: Path) -> NormalizedBar:
             low=float(raw_row["low"]),
             close=float(raw_row["close"]),
             volume=_parse_volume(raw_row["volume"]),
+            traded_value=_parse_optional_float(raw_row.get("traded_value", "")),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"Failed to parse normalized row in {path}: {raw_row}") from error
@@ -108,6 +111,12 @@ def _parse_volume(raw_value: str) -> int | None:
     if raw_value == "":
         return None
     return int(float(raw_value))
+
+
+def _parse_optional_float(raw_value: str) -> float | None:
+    if raw_value == "":
+        return None
+    return float(raw_value)
 
 
 def _intersection_dates(bars_by_symbol: dict[str, tuple[NormalizedBar, ...]]) -> tuple[date, ...]:

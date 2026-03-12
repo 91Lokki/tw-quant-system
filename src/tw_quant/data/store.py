@@ -60,6 +60,7 @@ def read_normalized_csv(path: Path) -> list[NormalizedBar]:
                     low=float(row["low"]),
                     close=float(row["close"]),
                     volume=_parse_volume(row["volume"]),
+                    traded_value=_parse_optional_float(row.get("traded_value", "")),
                 )
             )
     return rows
@@ -82,3 +83,9 @@ def _parse_volume(raw_value: str) -> int | None:
     if raw_value == "":
         return None
     return int(float(raw_value))
+
+
+def _parse_optional_float(raw_value: str) -> float | None:
+    if raw_value == "":
+        return None
+    return float(raw_value)

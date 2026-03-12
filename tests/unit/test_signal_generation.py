@@ -37,6 +37,7 @@ class SignalGenerationTests(unittest.TestCase):
             notes=(),
         )
         signal_config = SignalConfig(
+            mode="time_series_baseline",
             enabled_symbols=("2330",),
             benchmark="TAIEX",
             ma_fast_window=2,

@@ -16,6 +16,19 @@ This repository implements a local research pipeline for Taiwan equities:
 
 The current project is focused on daily or slower strategies. It is not a high-frequency system, a web app, or an auto-trading bot.
 
+## Research Branches
+
+The repository now keeps two Taiwan-focused research branches side by side:
+
+- `configs/settings.example.toml`
+  - the original `2330/0050 + TAIEX` narrow baseline
+  - retained as an early weak baseline / diagnosed failure case
+  - still useful for showing the project evolution and diagnostics workflow
+- `configs/tw_top50_liquidity.example.toml`
+  - the new forward research direction
+  - implements a reproducible `TWSE top-50 liquidity` universe builder and a monthly cross-sectional `volatility-adjusted momentum` signal panel
+  - now wired into a branch-specific dynamic-holdings backtest, walk-forward, and diagnostics workflow
+
 ## Problem Statement
 
 Many student quant projects stop at a notebook, a single script, or a one-off backtest. This project is meant to solve a more engineering-oriented problem:
@@ -29,7 +42,8 @@ The result is a project that is credible as both a CS systems project and an app
 ## End-to-End Pipeline
 
 ```text
-FinMind daily data
+baseline branch: FinMind daily data
+cross-sectional branch: TWSE official daily market data + TAIEX history
     ->
 raw JSON cache
     ->
@@ -95,18 +109,52 @@ uv run python -m streamlit run app/streamlit_app.py
 ```
 
 This direct module invocation is the stable workflow for the project at the moment.
-Use `--refresh` on the ingest step whenever you want to refetch FinMind data and extend local artifacts to the latest stable historical close.
+Use `--refresh` on the ingest step whenever you want to refetch official / provider data and extend local artifacts to the latest stable historical close.
+
+For the Taiwan top-50 liquidity cross-sectional branch, use:
+
+```bash
+uv run python -m tw_quant ingest --config configs/tw_top50_liquidity.example.toml --refresh
+uv run python -m tw_quant signals --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant backtest --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant walkforward --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant diagnostics --config configs/tw_top50_liquidity.example.toml
+```
+
+The current `tw_top50_liquidity` example config is the risk-controlled version of the same branch:
+- same TWSE top-50 liquidity universe
+- same volatility-adjusted momentum ranking
+- adds a simple benchmark regime filter on `TAIEX`
+- uses `3m cash` as the main hard-defense reference line
+- writes compact comparison artifacts for:
+  - `original_monthly`
+  - `risk_controlled_3m_cash`
+  - `risk_controlled_3m_half_exposure`
+  - `risk_controlled_3m_top5`
 
 ## Current Implemented Features
 
 - typed TOML configuration for ingestion, signals, portfolio, and backtest settings
-- FinMind-based Taiwan daily market data ingestion
+- branch-aware Taiwan daily market data ingestion:
+  - baseline branch uses FinMind for the narrow failure-case baseline
+  - cross-sectional branch uses TWSE official daily market data for feasible large-universe research
 - local raw JSON caching and normalized CSV storage
 - schema validation and shared-date alignment for normalized bars
 - signal generation with:
   - moving average trend
   - lookback momentum
   - rolling volatility filter
+- Phase A Taiwan cross-sectional research additions:
+  - TWSE common-stock metadata artifact
+  - monthly top-50 liquidity universe membership using 60-day average `Trading_money`
+  - monthly `volatility-adjusted momentum` signal panel for the selected universe
+- Phase D risk-control additions for the same Taiwan cross-sectional branch:
+  - benchmark regime filter based on `TAIEX` long-term trend
+  - explicit regime-off defensive behavior with a narrow comparison set
+  - compact comparison artifacts for:
+    - the original monthly alpha line
+    - the `3m cash` hard-defense line
+    - two `3m` soft-defense refinements
 - long-only portfolio construction with explicit rebalance rules
 - daily NAV simulation with transaction cost modeling
 - walk-forward out-of-sample evaluation with configurable train/test windows
@@ -121,10 +169,16 @@ Use `--refresh` on the ingest step whenever you want to refetch FinMind data and
 - `src/tw_quant/data/`: ingestion, normalization, storage, and local dataset loading
 - `src/tw_quant/signals/`: daily signal generation and signal panel loading
 - `src/tw_quant/portfolio/`: target weight construction and weight propagation
-- `src/tw_quant/backtest/`: return simulation and metric calculation
+- `src/tw_quant/backtest/`: baseline fixed-symbol backtests plus the Taiwan top-50 cross-sectional branch backtest path
 - `src/tw_quant/reporting/`: markdown reports and SVG performance charts
 - `src/tw_quant/pipelines/`: thin orchestration layer used by the CLI
 - `app/`: local Streamlit demo for showing project artifacts interactively
+
+For the risk-controlled cross-sectional branch, inspect these artifacts first:
+- `data/processed/backtests/tw_top50_liquidity_v1/risk_comparison.csv`
+- `data/processed/backtests/tw_top50_liquidity_v1/walkforward/risk_comparison.csv`
+- `data/processed/reports/tw_top50_liquidity_v1/backtest_summary.md`
+- `data/processed/reports/tw_top50_liquidity_v1/walkforward/walkforward_summary.md`
 
 ## Sample Results
 
@@ -170,6 +224,11 @@ After running the stable workflow, the main outputs are:
 
 - normalized daily bars in `data/processed/market_data/daily/`
 - signal panel in `data/processed/signals/daily/signal_panel.csv`
+- TWSE stock metadata in `data/processed/metadata/twse_stock_info.csv`
+- usable TWSE stock metadata in `data/processed/metadata/twse_usable_stock_info.csv`
+- per-symbol price availability in `data/processed/metadata/twse_price_availability.csv`
+- monthly universe membership in `data/processed/universe/tw_top50_liquidity_membership.csv`
+- monthly cross-sectional signal panel in `data/processed/signals/monthly/cross_sectional_signal_panel.csv`
 - daily NAV in `data/processed/backtests/<project_name>/daily_nav.csv`
 - daily weights in `data/processed/backtests/<project_name>/daily_weights.csv`
 - walk-forward NAV in `data/processed/backtests/<project_name>/walkforward/walkforward_nav.csv`
@@ -248,6 +307,9 @@ It is also specific enough to be memorable: the project is about Taiwan equities
 ## Current Limitations
 
 - the benchmark series uses a normalized TAIEX proxy source and does not include full OHLCV fields
+- the original `2330/0050` branch is intentionally retained as a weak baseline / failure case, not as the recommended forward research direction
+- the new TWSE top-50 liquidity branch is now the main forward research direction and is fully connected to backtest, walk-forward, and diagnostics
+- the cross-sectional branch only uses symbols confirmed to have usable local price history for the configured research range; if the effective candidate pool is too small, the pipeline now fails explicitly instead of silently using partial artifacts
 - the strategy logic is intentionally simple and long-only
 - the transaction cost model is bps-based and does not model lot size or fill mechanics
 - the project is local-file based and does not include a database layer
@@ -270,6 +332,7 @@ Recommended files to open:
 
 - [Project Overview](docs/project_overview.md)
 - [Architecture Notes](docs/architecture.md)
+- [Top-50 Liquidity Config](configs/tw_top50_liquidity.example.toml)
 - [Latest Sample Backtest Report](data/processed/reports/tw_quant_v1/backtest_summary.md)
 - [Local Demo App](app/streamlit_app.py)
 

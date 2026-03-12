@@ -17,9 +17,18 @@ def build_report(result: BacktestResult) -> str:
     )
 
     notes = "\n".join(f"- {note}" for note in result.notes) or "- No notes recorded."
-    tradable_symbols = ", ".join(result.tradable_symbols)
+    tradable_symbols = _format_symbol_preview(result.tradable_symbols)
     strategy_notes = "\n".join(_strategy_logic_lines(result))
     limitation_notes = "\n".join(_limitation_lines())
+    output_artifact_lines = [
+        f"- NAV CSV: {result.nav_path}",
+        f"- Weights CSV: {result.weights_path}",
+        f"- Report: {result.report_path}",
+        f"- Equity Curve Chart: {result.equity_curve_path}",
+        f"- Drawdown Chart: {result.drawdown_path}",
+    ]
+    if result.comparison_path is not None:
+        output_artifact_lines.append(f"- Risk Comparison CSV: {result.comparison_path}")
     content = "\n".join(
         [
             f"# {result.project_name} Backtest Summary",
@@ -33,6 +42,10 @@ def build_report(result: BacktestResult) -> str:
             f"- Benchmark: {result.benchmark}",
             f"- Run Period: {result.start_date.isoformat()} to {result.end_date.isoformat()}",
             f"- Rebalance Frequency: {result.rebalance_frequency}",
+            f"- Rebalance Cadence: every {result.rebalance_cadence_months} month(s)",
+            f"- Benchmark Regime Filter: {'enabled' if result.benchmark_filter_enabled else 'disabled'}",
+            f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
+            f"- Defensive Mode: {result.defensive_mode}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             f"- Final NAV: {result.final_nav:.6f}",
@@ -53,11 +66,7 @@ def build_report(result: BacktestResult) -> str:
             "",
             "## Output Artifacts",
             "",
-            f"- NAV CSV: {result.nav_path}",
-            f"- Weights CSV: {result.weights_path}",
-            f"- Report: {result.report_path}",
-            f"- Equity Curve Chart: {result.equity_curve_path}",
-            f"- Drawdown Chart: {result.drawdown_path}",
+            *output_artifact_lines,
             "",
             "## Charts",
             "",
@@ -89,13 +98,27 @@ def _strategy_logic_lines(result: BacktestResult) -> tuple[str, ...]:
         if result.hold_cash_when_inactive
         else "keeps exposure in the configured tradable universe even when signals are weak."
     )
-    return (
+    lines = [
         "- Uses the locally generated signal panel as the portfolio input for a long-only daily backtest.",
         f"- Rebalances on the first aligned trading day of each {result.rebalance_frequency} period and equal-weights selected symbols.",
         "- Applies new target weights on the next trading day to avoid lookahead bias.",
         "- Treats the benchmark as a comparison series, not as a directly held portfolio asset.",
         f"- Current cash behavior: {cash_behavior}",
-    )
+    ]
+    if result.benchmark_filter_enabled:
+        lines.append(
+            f"- Adds a benchmark regime gate: only holds risk positions when {result.benchmark} closes above its {result.benchmark_ma_window}-day moving average."
+        )
+        lines.append(
+            f"- Defensive behavior when the regime filter is OFF: {_describe_defensive_mode(result.defensive_mode)}."
+        )
+    else:
+        lines.append("- Benchmark regime gating is disabled in this run.")
+    if result.rebalance_cadence_months > 1:
+        lines.append(
+            f"- Monthly universe membership is still computed, but the portfolio only refreshes every {result.rebalance_cadence_months} month(s)."
+        )
+    return tuple(lines)
 
 
 def _limitation_lines() -> tuple[str, ...]:
@@ -112,10 +135,17 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
 
     result.report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    tradable_symbols = ", ".join(result.tradable_symbols)
+    tradable_symbols = _format_symbol_preview(result.tradable_symbols)
     notes = "\n".join(f"- {note}" for note in result.notes) or "- No notes recorded."
     window_lines = _walkforward_window_table_lines(result)
     limitation_notes = "\n".join(_walkforward_limitation_lines())
+    output_artifact_lines = [
+        f"- Walk-Forward NAV CSV: {result.nav_path}",
+        f"- Window Summary CSV: {result.window_summary_path}",
+        f"- Report: {result.report_path}",
+    ]
+    if result.comparison_path is not None:
+        output_artifact_lines.append(f"- Risk Comparison CSV: {result.comparison_path}")
     content = "\n".join(
         [
             f"# {result.project_name} Walk-Forward Summary",
@@ -134,6 +164,10 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             f"- Windows Evaluated: {result.window_count}",
             f"- Combined OOS Period: {result.start_date.isoformat()} to {result.end_date.isoformat()}",
             f"- Rebalance Frequency: {result.rebalance_frequency}",
+            f"- Rebalance Cadence: every {result.rebalance_cadence_months} month(s)",
+            f"- Benchmark Regime Filter: {'enabled' if result.benchmark_filter_enabled else 'disabled'}",
+            f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
+            f"- Defensive Mode: {result.defensive_mode}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             "",
@@ -154,9 +188,7 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             "",
             "## Output Artifacts",
             "",
-            f"- Walk-Forward NAV CSV: {result.nav_path}",
-            f"- Window Summary CSV: {result.window_summary_path}",
-            f"- Report: {result.report_path}",
+            *output_artifact_lines,
             "",
             "## Notes",
             "",
@@ -200,3 +232,20 @@ def _walkforward_limitation_lines() -> tuple[str, ...]:
         "- The benchmark view still relies on the normalized TAIEX proxy series rather than a full benchmark OHLCV history.",
         "- The project remains a local research system and does not include live execution or broker connectivity.",
     )
+
+
+def _describe_defensive_mode(defensive_mode: str) -> str:
+    if defensive_mode == "cash":
+        return "move fully to cash"
+    if defensive_mode == "half_exposure":
+        return "keep the same ranking logic but reduce gross exposure to 50%"
+    if defensive_mode == "top5":
+        return "concentrate into the top-5 ranked names with 50% gross exposure"
+    return defensive_mode
+
+
+def _format_symbol_preview(symbols: tuple[str, ...], limit: int = 12) -> str:
+    if len(symbols) <= limit:
+        return ", ".join(symbols)
+    preview = ", ".join(symbols[:limit])
+    return f"{preview}, ... (total {len(symbols)})"

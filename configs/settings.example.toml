@@ -8,6 +8,9 @@ benchmark = "TAIEX"
 start_date = "2014-01-01"
 end_date = "2026-03-10"
 
+[research]
+branch = "baseline_failure_case"
+
 [paths]
 project_root = ".."
 raw = "data/raw"
@@ -29,6 +32,7 @@ raw_cache_subdir = "finmind"
 normalized_subdir = "market_data/daily"
 
 [signals]
+mode = "time_series_baseline"
 enabled_symbols = ["2330", "0050"]
 benchmark = "TAIEX"
 ma_fast_window = 20

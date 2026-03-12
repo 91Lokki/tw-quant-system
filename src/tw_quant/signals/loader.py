@@ -6,8 +6,8 @@ import csv
 from datetime import date
 from pathlib import Path
 
-from tw_quant.core.models import SignalRow
-from tw_quant.signals.generate import SIGNAL_COLUMNS
+from tw_quant.core.models import CrossSectionalSignalRow, SignalRow
+from tw_quant.signals.generate import CROSS_SECTIONAL_SIGNAL_COLUMNS, SIGNAL_COLUMNS
 
 
 def load_signal_rows(
@@ -55,6 +55,45 @@ def load_signal_rows(
     return rows
 
 
+def load_cross_sectional_signal_rows(
+    path: Path,
+    start_date: date,
+    end_date: date,
+) -> list[CrossSectionalSignalRow]:
+    """Load monthly cross-sectional signal rows from the persisted Phase A artifact."""
+
+    if not path.exists():
+        raise FileNotFoundError(f"Cross-sectional signal panel not found: {path}")
+
+    rows: list[CrossSectionalSignalRow] = []
+    seen_pairs: set[tuple[date, str]] = set()
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError(f"CSV header is missing in {path}.")
+        missing_columns = [
+            column for column in CROSS_SECTIONAL_SIGNAL_COLUMNS if column not in reader.fieldnames
+        ]
+        if missing_columns:
+            raise ValueError(
+                f"Missing required cross-sectional signal columns in {path}: {', '.join(missing_columns)}"
+            )
+        for raw_row in reader:
+            row = _parse_cross_sectional_row(raw_row, path)
+            if not (start_date <= row.date <= end_date):
+                continue
+            key = (row.date, row.symbol)
+            if key in seen_pairs:
+                raise ValueError(
+                    f"Duplicate cross-sectional signal row found for {row.symbol} on {row.date.isoformat()} in {path}"
+                )
+            seen_pairs.add(key)
+            rows.append(row)
+
+    rows.sort(key=lambda row: (row.date, row.symbol))
+    return rows
+
+
 def _parse_row(raw_row: dict[str, str], path: Path) -> SignalRow:
     try:
         return SignalRow(
@@ -78,6 +117,33 @@ def _parse_optional_float(raw_value: str) -> float | None:
     if raw_value == "":
         return None
     return float(raw_value)
+
+
+def _parse_optional_int(raw_value: str) -> int | None:
+    if raw_value == "":
+        return None
+    return int(raw_value)
+
+
+def _parse_cross_sectional_row(
+    raw_row: dict[str, str],
+    path: Path,
+) -> CrossSectionalSignalRow:
+    try:
+        return CrossSectionalSignalRow(
+            date=date.fromisoformat(raw_row["date"]),
+            symbol=raw_row["symbol"],
+            close=float(raw_row["close"]),
+            avg_traded_value_60d=float(raw_row["avg_traded_value_60d"]),
+            liquidity_rank=int(raw_row["liquidity_rank"]),
+            momentum_126=_parse_optional_float(raw_row["momentum_126"]),
+            volatility_20=_parse_optional_float(raw_row["volatility_20"]),
+            signal_score=_parse_optional_float(raw_row["signal_score"]),
+            factor_rank=_parse_optional_int(raw_row["factor_rank"]),
+            universe_name=raw_row["universe_name"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"Failed to parse cross-sectional signal row in {path}: {raw_row}") from error
 
 
 def _validate_aligned_coverage(

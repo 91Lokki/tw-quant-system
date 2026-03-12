@@ -16,7 +16,8 @@ ingest
 Full data flow:
 
 ```text
-FinMind provider
+baseline branch: FinMind provider
+cross-sectional branch: TWSE official daily market + TAIEX history
     ->
 raw JSON cache
     ->
@@ -63,22 +64,39 @@ Streamlit demo app
 interactive inspection for reviewers
 ```
 
+Taiwan cross-sectional branch:
+
+```text
+TWSE official daily market snapshots + TWSE official TAIEX history
+    ->
+observed TWSE common-stock candidate master
+    ->
+monthly top-50 liquidity membership (60-day average Trading_money)
+    ->
+monthly volatility-adjusted momentum signal panel
+    ->
+benchmark regime filter + narrow defensive overlay variants
+    ->
+backtest / walk-forward / diagnostics
+```
+
 The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold business logic.
 
 ## Module Boundaries
 
 - `config.py` loads typed settings from TOML
 - `core/models.py` defines shared dataclasses used across the implemented research workflow
-- `data/providers.py` fetches raw market data from FinMind
+- `data/providers.py` fetches raw market data from either FinMind or TWSE official endpoints, depending on the research branch
 - `data/normalize.py` enforces the project-wide daily bar schema
 - `data/loader.py` loads normalized local bars, validates schema, and aligns symbols by date
 - `data/store.py` writes raw JSON caches and normalized CSV files
 - `data/io.py` manages local directory conventions for raw data, processed data, and reports
 - `signals/generate.py` computes the first real daily signal set from normalized bars
+- `universe/liquidity.py` builds the concrete Phase A TWSE top-50 liquidity universe membership artifact
 - `signals/loader.py` loads the persisted signal panel for portfolio construction and backtesting
 - `portfolio/construct.py` turns signal rows into rebalance targets and daily applied weights
-- `backtest/run.py` simulates the local-data backtest flow and writes NAV plus weight artifacts
-- `backtest/walkforward.py` runs expanding or rolling walk-forward evaluation on top of the same local artifacts and backtest engine
+- `backtest/run.py` simulates both the legacy fixed-symbol baseline and the Taiwan top-50 cross-sectional branch
+- `backtest/walkforward.py` runs expanding or rolling walk-forward evaluation on top of either branch
 - `backtest/metrics.py` computes core performance metrics
 - `diagnostics/analyze.py` reads persisted artifacts and explains yearly performance, walk-forward behavior, exposure usage, and signal activity
 - `reporting/charts.py` renders simple SVG performance charts from the persisted NAV series
@@ -87,6 +105,7 @@ The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold bus
 - `execution/paper.py` is a placeholder for future dry-run execution support
 - `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
 - `pipelines/signals.py` orchestrates local dataset loading, alignment, signal generation, and output
+- `pipelines/signals.py` also contains the branch split between the legacy daily baseline signals and the new monthly cross-sectional signals
 - `pipelines/backtest.py` wires the workflow together for the CLI
 - `pipelines/walkforward.py` exposes the walk-forward workflow through the CLI without changing the core engine
 - `pipelines/diagnostics.py` exposes the post-run diagnostics workflow through the CLI
@@ -102,6 +121,7 @@ Current design choices:
 - deterministic pipeline stages
 - small, explicit contracts between modules
 - simple portfolio and backtest logic that is easy to inspect
+- a concrete, non-generic Taiwan cross-sectional branch for top-liquidity universe research
 
 Not included yet:
 
@@ -109,6 +129,7 @@ Not included yet:
 - database-backed storage
 - dashboard or web service layers
 - large plugin or strategy frameworks
+- full survivorship-aware universe history and more complete listing / delisting state handling
 
 ## Why The Architecture Is Believable
 

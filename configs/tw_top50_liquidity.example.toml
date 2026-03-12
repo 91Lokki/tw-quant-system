@@ -1,0 +1,87 @@
+# Taiwan top-50 liquidity cross-sectional configuration.
+# This branch uses TWSE official daily market data for feasible large-universe ingestion.
+
+project_name = "tw_top50_liquidity_v1"
+market = "TW cash equities"
+universe = "twse_top50_liquidity"
+benchmark = "TAIEX"
+start_date = "2014-01-01"
+end_date = "2026-03-10"
+
+[research]
+branch = "tw_top50_liquidity_cross_sectional"
+
+[paths]
+project_root = ".."
+raw = "data/raw"
+processed = "data/processed"
+reports = "data/processed/reports"
+
+[costs]
+commission_bps = 14.25
+tax_bps = 30.0
+slippage_bps = 5.0
+
+[ingest]
+provider = "twse"
+symbols = []
+refresh = false
+storage_format = "csv"
+raw_cache_subdir = "twse"
+normalized_subdir = "market_data/daily"
+
+[universe_selection]
+candidate_market = "twse"
+selection_rule = "top_liquidity"
+liquidity_lookback_days = 60
+top_n = 50
+reconstitution_frequency = "monthly"
+metadata_output_subdir = "metadata"
+membership_output_subdir = "universe"
+membership_file = "tw_top50_liquidity_membership.csv"
+
+[signals]
+mode = "cross_sectional_vol_adj_momentum"
+enabled_symbols = []
+benchmark = "TAIEX"
+ma_fast_window = 20
+ma_slow_window = 60
+momentum_window = 126
+volatility_window = 20
+volatility_cap = 0.35
+align_by_date = false
+input_subdir = "market_data/daily"
+output_subdir = "signals/monthly"
+output_file = "cross_sectional_signal_panel.csv"
+
+[portfolio]
+tradable_symbols = []
+benchmark = "TAIEX"
+rebalance_frequency = "monthly"
+weighting = "equal"
+min_signal_score = 0.0
+max_positions = 10
+max_weight = 0.1
+hold_cash_when_inactive = true
+
+[risk_controls]
+benchmark_filter_enabled = true
+benchmark_ma_window = 200
+defensive_mode = "cash"
+rebalance_cadence_months = 3
+
+[backtest]
+initial_nav = 1.0
+bar_input_subdir = "market_data/daily"
+signal_input_subdir = "signals/monthly"
+signal_input_file = "cross_sectional_signal_panel.csv"
+output_subdir = "backtests"
+nav_file = "daily_nav.csv"
+weights_file = "daily_weights.csv"
+
+[walkforward]
+enabled = true
+window_type = "expanding"
+train_window_days = 252
+test_window_days = 63
+minimum_history_days = 252

@@ -16,6 +16,7 @@ The project currently supports:
 - report and chart generation
 - a lightweight local Streamlit demo for artifact inspection
 - bilingual presentation switching in the local demo layer
+- a Taiwan cross-sectional branch based on a reproducible `TWSE top-50 liquidity` universe and monthly `volatility-adjusted momentum` signals
 
 The implementation is intentionally scoped for end-of-day research. It is not a high-frequency system or a live trading product.
 
@@ -35,6 +36,8 @@ This project addresses that gap by building a modular research workflow for Taiw
 - locally runnable
 - extendable toward paper trading and future execution
 
+The original `2330/0050` route remains in the repository, but it is now explicitly treated as an early narrow baseline and a diagnosed failure case. The main forward research direction is the Taiwan cross-sectional branch.
+
 ## System Design
 
 The system is organized as a sequence of clearly separated stages:
@@ -51,7 +54,8 @@ ingest
 Expanded data flow:
 
 ```text
-FinMind API
+baseline branch: FinMind API
+cross-sectional branch: TWSE official daily market data + TAIEX history
     ->
 raw JSON cache
     ->
@@ -79,6 +83,22 @@ combined OOS NAV + walk-forward report
 ```
 
 This structure keeps each stage understandable on its own while allowing the whole workflow to run end to end.
+
+Current branch split:
+
+- baseline branch
+  - `2330/0050 + TAIEX`
+  - fully wired through backtest, walk-forward, diagnostics, and reports
+  - retained as a weak baseline / failure case
+- Taiwan cross-sectional branch
+  - `TWSE top-50 liquidity`
+  - monthly universe membership + monthly cross-sectional signal panel
+  - now connected to branch-specific backtest, walk-forward, and diagnostics workflows
+  - Phase E keeps the same alpha line but refines regime-off behavior around a tighter comparison set:
+    - `original_monthly`
+    - `risk_controlled_3m_cash`
+    - `risk_controlled_3m_half_exposure`
+    - `risk_controlled_3m_top5`
 
 ## Major Modules
 
@@ -134,7 +154,9 @@ Responsible for:
 
 The project currently includes:
 
-- FinMind-based daily ingestion for Taiwan equities and a benchmark
+- branch-aware ingestion:
+  - FinMind for the narrow `2330/0050` baseline
+  - TWSE official daily market ingestion for the Taiwan top-50 liquidity cross-sectional branch
 - normalized bar storage in local CSV form
 - signal generation with:
   - moving average trend
@@ -147,6 +169,10 @@ The project currently includes:
 - markdown summary report generation
 - SVG equity curve and drawdown chart generation
 - automated tests for config, data flow, signals, backtest, and reporting
+- Phase A cross-sectional research artifacts:
+  - `data/processed/metadata/twse_stock_info.csv`
+  - `data/processed/universe/tw_top50_liquidity_membership.csv`
+  - `data/processed/signals/monthly/cross_sectional_signal_panel.csv`
 
 ## Output Artifacts
 
@@ -154,6 +180,8 @@ The current workflow generates artifacts that are easy to inspect and show in a 
 
 - `data/processed/market_data/daily/<symbol>.csv`
 - `data/processed/signals/daily/signal_panel.csv`
+- `data/processed/metadata/twse_usable_stock_info.csv`
+- `data/processed/metadata/twse_price_availability.csv`
 - `data/processed/backtests/<project_name>/daily_nav.csv`
 - `data/processed/backtests/<project_name>/daily_weights.csv`
 - `data/processed/reports/<project_name>/backtest_summary.md`
@@ -203,6 +231,7 @@ Artifacts to inspect:
 - [Backtest Summary](../data/processed/reports/tw_quant_v1/backtest_summary.md)
 - [Equity Curve](../data/processed/reports/tw_quant_v1/equity_curve.svg)
 - [Drawdown Chart](../data/processed/reports/tw_quant_v1/drawdown.svg)
+- [Top-50 Liquidity Config](../configs/tw_top50_liquidity.example.toml)
 
 ## Stable Workflow
 
@@ -219,8 +248,18 @@ uv run python -m tw_quant diagnostics --config configs/settings.example.toml
 uv run python -m streamlit run app/streamlit_app.py
 ```
 
+Taiwan cross-sectional workflow:
+
+```bash
+uv run python -m tw_quant ingest --config configs/tw_top50_liquidity.example.toml --refresh
+uv run python -m tw_quant signals --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant backtest --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant walkforward --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant diagnostics --config configs/tw_top50_liquidity.example.toml
+```
+
 This workflow is the one to demonstrate to a reviewer because it exercises the full local pipeline.
-Use `--refresh` on the ingest step when you want to refetch FinMind data and update the local history horizon.
+Use `--refresh` on the ingest step when you want to refetch official / provider data and update the local history horizon.
 
 The Streamlit demo is meant to demonstrate:
 

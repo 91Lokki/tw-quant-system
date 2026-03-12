@@ -12,13 +12,15 @@ from statistics import fmean, median, pstdev
 from tw_quant.backtest.metrics import compute_metrics
 from tw_quant.core.models import (
     BacktestConfig,
+    CrossSectionalSignalRow,
     DiagnosticsResult,
     NavRow,
     PerformanceMetrics,
     PortfolioWeightRow,
     SignalRow,
 )
-from tw_quant.signals import load_signal_rows
+from tw_quant.signals import load_cross_sectional_signal_rows, load_signal_rows
+from tw_quant.universe import validate_artifact_freshness
 
 
 EPSILON = 1e-12
@@ -34,19 +36,48 @@ def run_diagnostics(config: BacktestConfig) -> DiagnosticsResult:
     report_dir = config.data_paths.reports_dir / config.project_name / "diagnostics"
     report_dir.mkdir(parents=True, exist_ok=True)
 
+    if config.research_branch == "tw_top50_liquidity_cross_sectional" and config.universe_config is not None:
+        validate_artifact_freshness(
+            config.universe_config.usable_metadata_path,
+            (
+                config.universe_config.membership_path,
+                config.backtest.signal_input_path,
+                backtest_dir / config.backtest.nav_file,
+                backtest_dir / config.backtest.weights_file,
+                backtest_dir / "walkforward" / "walkforward_nav.csv",
+                backtest_dir / "walkforward" / "window_summary.csv",
+            ),
+        )
+
     nav_rows = load_nav_rows(backtest_dir / config.backtest.nav_file)
     weight_rows = load_weight_rows(backtest_dir / config.backtest.weights_file)
-    signal_rows = load_signal_rows(
-        path=config.backtest.signal_input_path,
-        symbols=config.portfolio.tradable_symbols,
-        start_date=config.start_date,
-        end_date=config.end_date,
-        aligned_dates=None,
-    )
     walkforward_nav_rows = load_nav_rows(backtest_dir / "walkforward" / "walkforward_nav.csv")
     walkforward_window_rows = load_walkforward_window_rows(
         backtest_dir / "walkforward" / "window_summary.csv"
     )
+    analysis_symbols = tuple(sorted({row.symbol for row in weight_rows}))
+    if config.research_branch == "tw_top50_liquidity_cross_sectional":
+        cross_signal_rows = load_cross_sectional_signal_rows(
+            path=config.backtest.signal_input_path,
+            start_date=config.start_date,
+            end_date=config.end_date,
+        )
+        signal_diagnostic_rows, signal_summary = build_cross_sectional_signal_diagnostics(
+            signal_rows=cross_signal_rows,
+            symbols=analysis_symbols,
+        )
+    else:
+        signal_rows = load_signal_rows(
+            path=config.backtest.signal_input_path,
+            symbols=config.portfolio.tradable_symbols,
+            start_date=config.start_date,
+            end_date=config.end_date,
+            aligned_dates=None,
+        )
+        signal_diagnostic_rows, signal_summary = build_signal_diagnostics(
+            signal_rows=signal_rows,
+            tradable_symbols=config.portfolio.tradable_symbols,
+        )
 
     yearly_rows, yearly_summary = build_yearly_return_rows(nav_rows)
     walkforward_rows, walkforward_summary = build_walkforward_window_diagnostics(
@@ -55,11 +86,7 @@ def run_diagnostics(config: BacktestConfig) -> DiagnosticsResult:
     symbol_rows, exposure_summary = build_symbol_exposure_summary(
         weight_rows=weight_rows,
         nav_rows=nav_rows,
-        tradable_symbols=config.portfolio.tradable_symbols,
-    )
-    signal_diagnostic_rows, signal_summary = build_signal_diagnostics(
-        signal_rows=signal_rows,
-        tradable_symbols=config.portfolio.tradable_symbols,
+        tradable_symbols=analysis_symbols if analysis_symbols else config.portfolio.tradable_symbols,
     )
 
     yearly_table_path = _write_csv(
@@ -511,6 +538,90 @@ def build_signal_diagnostics(
     return rows, summary
 
 
+def build_cross_sectional_signal_diagnostics(
+    signal_rows: list[CrossSectionalSignalRow],
+    symbols: tuple[str, ...],
+) -> tuple[list[dict[str, str]], dict[str, object]]:
+    by_symbol: dict[str, list[CrossSectionalSignalRow]] = defaultdict(list)
+    for row in signal_rows:
+        by_symbol[row.symbol].append(row)
+
+    rows: list[dict[str, str]] = []
+    symbol_summaries: list[dict[str, float | str]] = []
+    for symbol in symbols:
+        symbol_rows = by_symbol.get(symbol, [])
+        observation_days = len(symbol_rows)
+        positive_days = sum(
+            1 for row in symbol_rows if row.signal_score is not None and row.signal_score > EPSILON
+        )
+        negative_days = sum(
+            1 for row in symbol_rows if row.signal_score is not None and row.signal_score < -EPSILON
+        )
+        inactive_days = observation_days - positive_days - negative_days
+        average_signal_score = (
+            fmean(row.signal_score for row in symbol_rows if row.signal_score is not None)
+            if symbol_rows and any(row.signal_score is not None for row in symbol_rows)
+            else 0.0
+        )
+        average_abs_signal_score = (
+            fmean(abs(row.signal_score) for row in symbol_rows if row.signal_score is not None)
+            if symbol_rows and any(row.signal_score is not None for row in symbol_rows)
+            else 0.0
+        )
+        rows.append(
+            {
+                "symbol": symbol,
+                "observation_days": f"{observation_days}",
+                "positive_days": f"{positive_days}",
+                "negative_days": f"{negative_days}",
+                "inactive_days": f"{inactive_days}",
+                "positive_ratio": f"{positive_days / observation_days if observation_days else 0.0}",
+                "negative_ratio": f"{negative_days / observation_days if observation_days else 0.0}",
+                "inactive_ratio": f"{inactive_days / observation_days if observation_days else 0.0}",
+                "average_signal_score": f"{average_signal_score}",
+                "average_abs_signal_score": f"{average_abs_signal_score}",
+                "volatility_filter_pass_ratio": f"{1.0 if observation_days else 0.0}",
+                "volatility_suppressed_days": "0",
+                "volatility_suppressed_ratio": "0.0",
+            }
+        )
+        symbol_summaries.append(
+            {
+                "symbol": symbol,
+                "positive_ratio": positive_days / observation_days if observation_days else 0.0,
+                "inactive_ratio": inactive_days / observation_days if observation_days else 0.0,
+                "average_signal_score": average_signal_score,
+                "volatility_suppressed_ratio": 0.0,
+            }
+        )
+
+    if not symbol_summaries:
+        summary = {
+            "symbol_count": 0,
+            "dominant_symbol": {
+                "symbol": "N/A",
+                "positive_ratio": 0.0,
+                "inactive_ratio": 0.0,
+                "average_signal_score": 0.0,
+                "volatility_suppressed_ratio": 0.0,
+            },
+            "average_positive_ratio": 0.0,
+            "average_inactive_ratio": 0.0,
+            "average_volatility_suppressed_ratio": 0.0,
+        }
+        return rows, summary
+
+    dominant_symbol = max(symbol_summaries, key=lambda item: item["average_signal_score"])
+    summary = {
+        "symbol_count": len(symbol_summaries),
+        "dominant_symbol": dominant_symbol,
+        "average_positive_ratio": fmean(float(row["positive_ratio"]) for row in rows) if rows else 0.0,
+        "average_inactive_ratio": fmean(float(row["inactive_ratio"]) for row in rows) if rows else 0.0,
+        "average_volatility_suppressed_ratio": 0.0,
+    }
+    return rows, summary
+
+
 def build_key_findings(
     yearly_summary: dict[str, object],
     walkforward_summary: dict[str, object],
@@ -590,6 +701,10 @@ def _write_diagnostics_report(
             "- This report analyzes existing local artifacts only. It does not change the strategy, signals, portfolio rules, backtest engine, or walk-forward design.",
             "- Inputs used: backtest NAV, daily weights, walk-forward window summary, and the persisted signal panel.",
             f"- Analysis Period: {config.start_date.isoformat()} to {config.end_date.isoformat()}",
+            f"- Benchmark Regime Filter: {'enabled' if config.risk_controls.benchmark_filter_enabled else 'disabled'}",
+            f"- Benchmark MA Window: {config.risk_controls.benchmark_ma_window} trading days",
+            f"- Rebalance Cadence: every {config.risk_controls.rebalance_cadence_months} month(s)",
+            f"- Defensive Mode: {config.risk_controls.defensive_mode}",
             "",
             "## Headline Context",
             "",

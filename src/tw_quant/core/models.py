@@ -23,6 +23,34 @@ class TradingCosts:
 
 
 @dataclass(frozen=True, slots=True)
+class UniverseConfig:
+    candidate_market: str
+    selection_rule: str
+    liquidity_lookback_days: int
+    top_n: int
+    reconstitution_frequency: str
+    metadata_output_dir: Path
+    membership_output_dir: Path
+    membership_file: str
+
+    @property
+    def metadata_path(self) -> Path:
+        return self.metadata_output_dir / "twse_stock_info.csv"
+
+    @property
+    def usable_metadata_path(self) -> Path:
+        return self.metadata_output_dir / "twse_usable_stock_info.csv"
+
+    @property
+    def availability_path(self) -> Path:
+        return self.metadata_output_dir / "twse_price_availability.csv"
+
+    @property
+    def membership_path(self) -> Path:
+        return self.membership_output_dir / self.membership_file
+
+
+@dataclass(frozen=True, slots=True)
 class IngestConfig:
     provider: str
     symbols: tuple[str, ...]
@@ -43,6 +71,7 @@ class IngestConfig:
 
 @dataclass(frozen=True, slots=True)
 class SignalConfig:
+    mode: str
     enabled_symbols: tuple[str, ...]
     benchmark: str
     ma_fast_window: int
@@ -83,6 +112,14 @@ class PortfolioConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class RiskControlConfig:
+    benchmark_filter_enabled: bool
+    benchmark_ma_window: int
+    defensive_mode: str
+    rebalance_cadence_months: int
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestEngineConfig:
     initial_nav: float
     bar_input_dir: Path
@@ -112,8 +149,12 @@ class BacktestConfig:
     data_paths: DataPaths
     trading_costs: TradingCosts
     portfolio: PortfolioConfig
+    risk_controls: RiskControlConfig
     backtest: BacktestEngineConfig
     walkforward: WalkForwardConfig
+    research_branch: str = "baseline_failure_case"
+    signal_mode: str = "time_series_baseline"
+    universe_config: UniverseConfig | None = None
 
     def date_range_label(self) -> str:
         return f"{self.start_date.isoformat()} to {self.end_date.isoformat()}"
@@ -122,6 +163,7 @@ class BacktestConfig:
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     project_name: str
+    research_branch: str
     market: str
     universe: str
     benchmark: str
@@ -130,8 +172,10 @@ class AppConfig:
     data_paths: DataPaths
     trading_costs: TradingCosts
     ingest: IngestConfig
+    universe_config: UniverseConfig
     signals: SignalConfig
     portfolio: PortfolioConfig
+    risk_controls: RiskControlConfig
     backtest: BacktestEngineConfig
     walkforward: WalkForwardConfig
 
@@ -146,8 +190,12 @@ class AppConfig:
             data_paths=self.data_paths,
             trading_costs=self.trading_costs,
             portfolio=self.portfolio,
+            risk_controls=self.risk_controls,
             backtest=self.backtest,
             walkforward=self.walkforward,
+            research_branch=self.research_branch,
+            signal_mode=self.signals.mode,
+            universe_config=self.universe_config,
         )
 
 
@@ -211,8 +259,12 @@ class BacktestResult:
     benchmark: str
     tradable_symbols: tuple[str, ...]
     rebalance_frequency: str
+    rebalance_cadence_months: int
     trading_costs: TradingCosts
     hold_cash_when_inactive: bool
+    benchmark_filter_enabled: bool
+    benchmark_ma_window: int
+    defensive_mode: str
     start_date: date
     end_date: date
     report_path: Path
@@ -220,6 +272,7 @@ class BacktestResult:
     weights_path: Path
     equity_curve_path: Path
     drawdown_path: Path
+    comparison_path: Path | None
     metrics: PerformanceMetrics
     final_nav: float
     benchmark_final_nav: float
@@ -227,13 +280,18 @@ class BacktestResult:
     notes: tuple[str, ...]
 
     def summary_text(self) -> str:
+        tradable_preview = _format_symbol_preview(self.tradable_symbols)
         lines = [
             f"Project: {self.project_name}",
             f"Market: {self.market}",
             f"Universe: {self.universe}",
             f"Benchmark: {self.benchmark}",
-            f"Tradable Symbols: {', '.join(self.tradable_symbols)}",
+            f"Tradable Symbols: {tradable_preview}",
             f"Rebalance Frequency: {self.rebalance_frequency}",
+            f"Rebalance Cadence (months): {self.rebalance_cadence_months}",
+            f"Benchmark Filter Enabled: {self.benchmark_filter_enabled}",
+            f"Benchmark MA Window: {self.benchmark_ma_window}",
+            f"Defensive Mode: {self.defensive_mode}",
             f"Date range: {self.start_date.isoformat()} to {self.end_date.isoformat()}",
             f"Status: {self.status}",
             f"Final NAV: {self.final_nav:.6f}",
@@ -244,19 +302,26 @@ class BacktestResult:
             f"Equity Curve: {self.equity_curve_path}",
             f"Drawdown Chart: {self.drawdown_path}",
         ]
+        if self.comparison_path is not None:
+            lines.append(f"Risk Comparison: {self.comparison_path}")
         if self.notes:
             lines.append("Notes:")
             lines.extend(f"- {note}" for note in self.notes)
         return "\n".join(lines)
 
     def summary_text_zh(self) -> str:
+        tradable_preview = _format_symbol_preview(self.tradable_symbols)
         lines = [
             "回測完成",
             f"市場: {self.market}",
             f"投資範圍: {self.universe}",
             f"基準指標: {self.benchmark}",
-            f"可交易標的: {', '.join(self.tradable_symbols)}",
+            f"可交易標的: {tradable_preview}",
             f"再平衡頻率: {self.rebalance_frequency}",
+            f"換倉 cadence: 每 {self.rebalance_cadence_months} 個月",
+            f"Benchmark regime filter: {'開啟' if self.benchmark_filter_enabled else '關閉'}",
+            f"Benchmark MA 視窗: {self.benchmark_ma_window}",
+            f"防守模式: {self.defensive_mode}",
             f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
             f"最終 NAV: {self.final_nav:.6f}",
             f"累積報酬: {self.metrics.cumulative_return:.2%}",
@@ -271,6 +336,8 @@ class BacktestResult:
             f"權益曲線圖: {self.equity_curve_path}",
             f"回撤圖: {self.drawdown_path}",
         ]
+        if self.comparison_path is not None:
+            lines.append(f"比較檔案: {self.comparison_path}")
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
@@ -329,8 +396,12 @@ class WalkForwardResult:
     benchmark: str
     tradable_symbols: tuple[str, ...]
     rebalance_frequency: str
+    rebalance_cadence_months: int
     trading_costs: TradingCosts
     hold_cash_when_inactive: bool
+    benchmark_filter_enabled: bool
+    benchmark_ma_window: int
+    defensive_mode: str
     window_type: str
     train_window_days: int
     test_window_days: int
@@ -340,6 +411,7 @@ class WalkForwardResult:
     nav_path: Path
     window_summary_path: Path
     report_path: Path
+    comparison_path: Path | None
     metrics: PerformanceMetrics
     final_nav: float
     benchmark_final_nav: float
@@ -349,12 +421,17 @@ class WalkForwardResult:
     windows: tuple[WalkForwardWindowResult, ...]
 
     def summary_text_zh(self) -> str:
+        tradable_preview = _format_symbol_preview(self.tradable_symbols)
         lines = [
             "Walk-forward 評估完成",
             f"市場: {self.market}",
             f"投資範圍: {self.universe}",
             f"基準指標: {self.benchmark}",
-            f"可交易標的: {', '.join(self.tradable_symbols)}",
+            f"可交易標的: {tradable_preview}",
+            f"換倉 cadence: 每 {self.rebalance_cadence_months} 個月",
+            f"Benchmark regime filter: {'開啟' if self.benchmark_filter_enabled else '關閉'}",
+            f"Benchmark MA 視窗: {self.benchmark_ma_window}",
+            f"防守模式: {self.defensive_mode}",
             f"Walk-forward 設計: {self.window_type}",
             f"訓練窗長度: {self.train_window_days} 個交易日",
             f"測試窗長度: {self.test_window_days} 個交易日",
@@ -372,6 +449,8 @@ class WalkForwardResult:
             f"視窗摘要檔案: {self.window_summary_path}",
             f"摘要報告: {self.report_path}",
         ]
+        if self.comparison_path is not None:
+            lines.append(f"比較檔案: {self.comparison_path}")
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
@@ -416,6 +495,7 @@ class NormalizedBar:
     low: float
     close: float
     volume: int | None
+    traded_value: float | None = None
 
     def to_csv_row(self) -> dict[str, str]:
         return {
@@ -426,6 +506,7 @@ class NormalizedBar:
             "low": f"{self.low}",
             "close": f"{self.close}",
             "volume": "" if self.volume is None else str(self.volume),
+            "traded_value": "" if self.traded_value is None else f"{self.traded_value}",
         }
 
 
@@ -448,12 +529,20 @@ class IngestResult:
     normalized_dir: Path
     datasets: tuple[IngestedDataset, ...]
     notes: tuple[str, ...]
+    metadata_path: Path | None = None
+    usable_metadata_path: Path | None = None
+    availability_path: Path | None = None
+    candidate_symbol_count: int | None = None
+    usable_symbol_count: int | None = None
+    skipped_symbol_count: int | None = None
+    research_branch: str = "baseline_failure_case"
 
     def summary_text_zh(self) -> str:
         cached = sum(1 for dataset in self.datasets if dataset.from_cache)
         fetched = len(self.datasets) - cached
         lines = [
             "資料擷取完成",
+            f"研究分支: {self.research_branch}",
             f"提供者: {self.provider}",
             f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
             f"輸出格式: {self.storage_format}",
@@ -462,11 +551,26 @@ class IngestResult:
             f"快取命中: {cached}",
             f"重新抓取: {fetched}",
         ]
-        for dataset in self.datasets:
+        if self.candidate_symbol_count is not None:
+            lines.append(f"候選股票數量: {self.candidate_symbol_count}")
+        if self.metadata_path is not None:
+            lines.append(f"Metadata 檔案: {self.metadata_path}")
+        if self.usable_metadata_path is not None:
+            lines.append(f"可用候選池檔案: {self.usable_metadata_path}")
+        if self.availability_path is not None:
+            lines.append(f"價格可用性檔案: {self.availability_path}")
+        if self.usable_symbol_count is not None:
+            lines.append(f"可用股票數量: {self.usable_symbol_count}")
+        if self.skipped_symbol_count is not None:
+            lines.append(f"跳過股票數量: {self.skipped_symbol_count}")
+        visible_datasets = self.datasets[:20]
+        for dataset in visible_datasets:
             source_label = "快取" if dataset.from_cache else dataset.dataset
             lines.append(
                 f"- {dataset.symbol}: {dataset.rows} 筆, {source_label}, {dataset.path.name}"
             )
+        if len(self.datasets) > len(visible_datasets):
+            lines.append(f"- 其餘 {len(self.datasets) - len(visible_datasets)} 個資料集已省略")
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
@@ -518,6 +622,54 @@ class SignalRow:
 
 
 @dataclass(frozen=True, slots=True)
+class UniverseMembershipRow:
+    date: date
+    symbol: str
+    liquidity_rank: int
+    avg_traded_value_60d: float
+    universe_name: str
+    is_member: bool
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "date": self.date.isoformat(),
+            "symbol": self.symbol,
+            "liquidity_rank": str(self.liquidity_rank),
+            "avg_traded_value_60d": f"{self.avg_traded_value_60d}",
+            "universe_name": self.universe_name,
+            "is_member": "1" if self.is_member else "0",
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CrossSectionalSignalRow:
+    date: date
+    symbol: str
+    close: float
+    avg_traded_value_60d: float
+    liquidity_rank: int
+    momentum_126: float | None
+    volatility_20: float | None
+    signal_score: float | None
+    factor_rank: int | None
+    universe_name: str
+
+    def to_csv_row(self) -> dict[str, str]:
+        return {
+            "date": self.date.isoformat(),
+            "symbol": self.symbol,
+            "close": f"{self.close}",
+            "avg_traded_value_60d": f"{self.avg_traded_value_60d}",
+            "liquidity_rank": str(self.liquidity_rank),
+            "momentum_126": "" if self.momentum_126 is None else f"{self.momentum_126}",
+            "volatility_20": "" if self.volatility_20 is None else f"{self.volatility_20}",
+            "signal_score": "" if self.signal_score is None else f"{self.signal_score}",
+            "factor_rank": "" if self.factor_rank is None else str(self.factor_rank),
+            "universe_name": self.universe_name,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class SignalResult:
     start_date: date
     end_date: date
@@ -526,19 +678,34 @@ class SignalResult:
     row_count: int
     output_path: Path
     notes: tuple[str, ...]
+    mode: str = "time_series_baseline"
+    membership_output_path: Path | None = None
 
     def summary_text_zh(self) -> str:
         lines = [
             "訊號產生完成",
+            f"模式: {self.mode}",
             f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
             f"標的數量: {len(self.symbols)}",
             f"對齊交易日數: {len(self.aligned_dates)}",
             f"輸出筆數: {self.row_count}",
             f"輸出檔案: {self.output_path}",
         ]
-        for symbol in self.symbols:
+        if self.membership_output_path is not None:
+            lines.append(f"Universe 檔案: {self.membership_output_path}")
+        visible_symbols = self.symbols[:20]
+        for symbol in visible_symbols:
             lines.append(f"- {symbol}")
+        if len(self.symbols) > len(visible_symbols):
+            lines.append(f"- 其餘 {len(self.symbols) - len(visible_symbols)} 檔標的已省略")
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)
         return "\n".join(lines)
+
+
+def _format_symbol_preview(symbols: tuple[str, ...], limit: int = 12) -> str:
+    if len(symbols) <= limit:
+        return ", ".join(symbols)
+    preview = ", ".join(symbols[:limit])
+    return f"{preview}, ... (total {len(symbols)})"
