@@ -46,6 +46,7 @@ def build_report(result: BacktestResult) -> str:
             f"- Benchmark Regime Filter: {'enabled' if result.benchmark_filter_enabled else 'disabled'}",
             f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
             f"- Defensive Mode: {result.defensive_mode}",
+            f"- Defensive Gross Exposure: {result.defensive_gross_exposure:.0%}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             f"- Final NAV: {result.final_nav:.6f}",
@@ -110,7 +111,8 @@ def _strategy_logic_lines(result: BacktestResult) -> tuple[str, ...]:
             f"- Adds a benchmark regime gate: only holds risk positions when {result.benchmark} closes above its {result.benchmark_ma_window}-day moving average."
         )
         lines.append(
-            f"- Defensive behavior when the regime filter is OFF: {_describe_defensive_mode(result.defensive_mode)}."
+            "- Defensive behavior when the regime filter is OFF: "
+            f"{_describe_defensive_mode(result.defensive_mode, result.defensive_gross_exposure)}."
         )
     else:
         lines.append("- Benchmark regime gating is disabled in this run.")
@@ -168,6 +170,7 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             f"- Benchmark Regime Filter: {'enabled' if result.benchmark_filter_enabled else 'disabled'}",
             f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
             f"- Defensive Mode: {result.defensive_mode}",
+            f"- Defensive Gross Exposure: {result.defensive_gross_exposure:.0%}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             "",
@@ -234,13 +237,13 @@ def _walkforward_limitation_lines() -> tuple[str, ...]:
     )
 
 
-def _describe_defensive_mode(defensive_mode: str) -> str:
+def _describe_defensive_mode(defensive_mode: str, gross_exposure: float) -> str:
     if defensive_mode == "cash":
         return "move fully to cash"
     if defensive_mode == "half_exposure":
-        return "keep the same ranking logic but reduce gross exposure to 50%"
+        return f"keep the same ranking logic but reduce gross exposure to {gross_exposure:.0%}"
     if defensive_mode == "top5":
-        return "concentrate into the top-5 ranked names with 50% gross exposure"
+        return f"concentrate into the top-5 ranked names with {gross_exposure:.0%} gross exposure"
     return defensive_mode
 
 

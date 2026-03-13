@@ -181,6 +181,7 @@ def run_walkforward(config: BacktestConfig) -> WalkForwardResult:
         benchmark_filter_enabled=config.risk_controls.benchmark_filter_enabled,
         benchmark_ma_window=config.risk_controls.benchmark_ma_window,
         defensive_mode=config.risk_controls.defensive_mode,
+        defensive_gross_exposure=config.risk_controls.defensive_gross_exposure,
         window_type=config.walkforward.window_type,
         train_window_days=config.walkforward.train_window_days,
         test_window_days=config.walkforward.test_window_days,
@@ -260,6 +261,7 @@ def _write_cross_sectional_walkforward_comparison(
         config.risk_controls.benchmark_filter_enabled,
         config.risk_controls.benchmark_ma_window,
         config.risk_controls.defensive_mode,
+        config.risk_controls.defensive_gross_exposure,
         config.risk_controls.rebalance_cadence_months,
     )
 
@@ -271,6 +273,7 @@ def _write_cross_sectional_walkforward_comparison(
                 "benchmark_filter_enabled",
                 "benchmark_ma_window",
                 "defensive_mode",
+                "defensive_gross_exposure",
                 "rebalance_cadence_months",
                 "window_count",
                 "final_nav",
@@ -289,6 +292,7 @@ def _write_cross_sectional_walkforward_comparison(
                 variant_config.risk_controls.benchmark_filter_enabled,
                 variant_config.risk_controls.benchmark_ma_window,
                 variant_config.risk_controls.defensive_mode,
+                variant_config.risk_controls.defensive_gross_exposure,
                 variant_config.risk_controls.rebalance_cadence_months,
             )
             if variant_signature == primary_signature:
@@ -308,6 +312,7 @@ def _write_cross_sectional_walkforward_comparison(
                     ).lower(),
                     "benchmark_ma_window": str(variant_config.risk_controls.benchmark_ma_window),
                     "defensive_mode": variant_config.risk_controls.defensive_mode,
+                    "defensive_gross_exposure": f"{variant_config.risk_controls.defensive_gross_exposure}",
                     "rebalance_cadence_months": str(
                         variant_config.risk_controls.rebalance_cadence_months
                     ),
@@ -457,11 +462,12 @@ def _build_walkforward_notes(
     notes.append("樣本外聚合 NAV 會把各視窗的日報酬串接起來，不會把 in-sample 期間計入最終績效。")
     if config.risk_controls.benchmark_filter_enabled:
         notes.append(
-            f"Phase D 風控在 OOS 也保持一致：當 {config.benchmark} 未站上 {config.risk_controls.benchmark_ma_window} 日均線時，"
-            "防守模式會回到現金。"
+            f"Phase F 風控在 OOS 也保持一致：當 {config.benchmark} 未站上 {config.risk_controls.benchmark_ma_window} 日均線時，"
+            f"防守模式會切換為 {config.risk_controls.defensive_mode}，防守總曝險為 "
+            f"{config.risk_controls.defensive_gross_exposure:.0%}。"
         )
     if config.risk_controls.rebalance_cadence_months > 1:
         notes.append(
-            f"Phase D cadence 敏感度：此 run 每 {config.risk_controls.rebalance_cadence_months} 個月才更新一次投組持倉。"
+            f"Phase F cadence 敏感度：此 run 每 {config.risk_controls.rebalance_cadence_months} 個月才更新一次投組持倉。"
         )
     return tuple(notes)

@@ -705,6 +705,7 @@ def _write_diagnostics_report(
             f"- Benchmark MA Window: {config.risk_controls.benchmark_ma_window} trading days",
             f"- Rebalance Cadence: every {config.risk_controls.rebalance_cadence_months} month(s)",
             f"- Defensive Mode: {config.risk_controls.defensive_mode}",
+            f"- Defensive Gross Exposure: {config.risk_controls.defensive_gross_exposure:.0%}",
             "",
             "## Headline Context",
             "",

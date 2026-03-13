@@ -67,7 +67,8 @@ hold_cash_when_inactive = true
 [risk_controls]
 benchmark_filter_enabled = true
 benchmark_ma_window = 200
-defensive_mode = "cash"
+defensive_mode = "half_exposure"
+defensive_gross_exposure = 0.5
 rebalance_cadence_months = 3
 
 [backtest]

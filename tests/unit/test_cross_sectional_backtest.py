@@ -27,12 +27,16 @@ from tw_quant.diagnostics import run_diagnostics
 
 
 class CrossSectionalBranchTests(unittest.TestCase):
-    def test_defensive_half_exposure_keeps_same_ranking_with_50_percent_gross(self) -> None:
+    def test_defensive_half_exposure_keeps_same_ranking_with_configured_gross(self) -> None:
         config = load_backtest_settings(PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml")
         variant_config = replace(
             config,
-            portfolio=replace(config.portfolio, max_positions=2, max_weight=0.25),
-            risk_controls=replace(config.risk_controls, defensive_mode="half_exposure"),
+            portfolio=replace(config.portfolio, max_positions=2, max_weight=0.5),
+            risk_controls=replace(
+                config.risk_controls,
+                defensive_mode="half_exposure",
+                defensive_gross_exposure=0.6,
+            ),
         )
         rows = (
             CrossSectionalSignalRow(
@@ -79,15 +83,19 @@ class CrossSectionalBranchTests(unittest.TestCase):
             signal_rows=rows,
         )
 
-        self.assertEqual(weights, {"1101": 0.25, "1102": 0.25, "1103": 0.0})
-        self.assertAlmostEqual(sum(weights.values()), 0.5, places=6)
+        self.assertEqual(weights, {"1101": 0.3, "1102": 0.3, "1103": 0.0})
+        self.assertAlmostEqual(sum(weights.values()), 0.6, places=6)
 
-    def test_defensive_top5_caps_holdings_and_gross_exposure(self) -> None:
+    def test_defensive_top5_caps_holdings_and_uses_configured_gross(self) -> None:
         config = load_backtest_settings(PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml")
         variant_config = replace(
             config,
             portfolio=replace(config.portfolio, max_positions=6, max_weight=0.2),
-            risk_controls=replace(config.risk_controls, defensive_mode="top5"),
+            risk_controls=replace(
+                config.risk_controls,
+                defensive_mode="top5",
+                defensive_gross_exposure=0.6,
+            ),
         )
         rows = tuple(
             CrossSectionalSignalRow(
@@ -113,10 +121,10 @@ class CrossSectionalBranchTests(unittest.TestCase):
 
         held_symbols = {symbol for symbol, weight in weights.items() if weight > 0.0}
         self.assertEqual(held_symbols, {"1100", "1101", "1102", "1103", "1104"})
-        self.assertAlmostEqual(sum(weights.values()), 0.5, places=6)
+        self.assertAlmostEqual(sum(weights.values()), 0.6, places=6)
         self.assertEqual(weights["1105"], 0.0)
 
-    def test_build_cross_sectional_variant_configs_returns_fixed_phase_e_labels(self) -> None:
+    def test_build_cross_sectional_variant_configs_returns_fixed_phase_f_labels(self) -> None:
         config = load_backtest_settings(PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml")
 
         variants = build_cross_sectional_variant_configs(config)
@@ -125,9 +133,9 @@ class CrossSectionalBranchTests(unittest.TestCase):
             tuple(label for label, _ in variants),
             (
                 "original_monthly",
-                "risk_controlled_3m_cash",
                 "risk_controlled_3m_half_exposure",
-                "risk_controlled_3m_top5",
+                "risk_controlled_3m_half_exposure_ma150",
+                "risk_controlled_3m_half_exposure_exp60",
             ),
         )
 
@@ -221,17 +229,21 @@ class CrossSectionalBranchTests(unittest.TestCase):
 
             comparison_text = result.comparison_path.read_text(encoding="utf-8")
             self.assertIn("original_monthly", comparison_text)
-            self.assertIn("risk_controlled_3m_cash", comparison_text)
+            self.assertIn("risk_controlled_3m_half_exposure", comparison_text)
             comparison_rows = list(csv.DictReader(result.comparison_path.open("r", newline="", encoding="utf-8")))
             self.assertEqual(
                 [row["label"] for row in comparison_rows],
                 [
                     "original_monthly",
-                    "risk_controlled_3m_cash",
                     "risk_controlled_3m_half_exposure",
-                    "risk_controlled_3m_top5",
+                    "risk_controlled_3m_half_exposure_ma150",
+                    "risk_controlled_3m_half_exposure_exp60",
                 ],
             )
+            primary_row = next(
+                row for row in comparison_rows if row["label"] == "risk_controlled_3m_half_exposure"
+            )
+            self.assertEqual(primary_row["defensive_gross_exposure"], "0.5")
 
     def test_run_backtest_supports_rebalance_cadence_sensitivity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -271,8 +283,9 @@ class CrossSectionalBranchTests(unittest.TestCase):
                     """
                     [risk_controls]
                     benchmark_filter_enabled = true
-                    benchmark_ma_window = 3
+                    benchmark_ma_window = 200
                     defensive_mode = "half_exposure"
+                    defensive_gross_exposure = 0.5
                     rebalance_cadence_months = 3
                     """
                 ).strip(),
@@ -284,7 +297,7 @@ class CrossSectionalBranchTests(unittest.TestCase):
             self.assertIsNotNone(result.comparison_path)
             assert result.comparison_path is not None
             self.assertTrue(result.comparison_path.exists())
-            self.assertAlmostEqual(result.final_nav, 1.1, places=6)
+            self.assertAlmostEqual(result.final_nav, 1.05, places=6)
             self.assertGreater(result.metrics.turnover, 0.0)
 
             comparison_rows = list(
@@ -295,6 +308,16 @@ class CrossSectionalBranchTests(unittest.TestCase):
             )
             self.assertAlmostEqual(float(primary_row["final_nav"]), result.final_nav, places=6)
             self.assertGreater(float(primary_row["turnover"]), 0.0)
+            labels = [row["label"] for row in comparison_rows]
+            self.assertEqual(
+                labels,
+                [
+                    "original_monthly",
+                    "risk_controlled_3m_half_exposure",
+                    "risk_controlled_3m_half_exposure_ma150",
+                    "risk_controlled_3m_half_exposure_exp60",
+                ],
+            )
 
     def test_run_walkforward_can_stay_in_cash_when_benchmark_regime_never_turns_on(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -75,7 +75,7 @@ monthly top-50 liquidity membership (60-day average Trading_money)
     ->
 monthly volatility-adjusted momentum signal panel
     ->
-benchmark regime filter + narrow defensive overlay variants
+benchmark regime filter + focused half-exposure robustness variants
     ->
 backtest / walk-forward / diagnostics
 ```

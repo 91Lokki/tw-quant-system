@@ -94,11 +94,11 @@ Current branch split:
   - `TWSE top-50 liquidity`
   - monthly universe membership + monthly cross-sectional signal panel
   - now connected to branch-specific backtest, walk-forward, and diagnostics workflows
-  - Phase E keeps the same alpha line but refines regime-off behavior around a tighter comparison set:
+  - Phase F keeps the same alpha line but narrows the practical comparison to:
     - `original_monthly`
-    - `risk_controlled_3m_cash`
     - `risk_controlled_3m_half_exposure`
-    - `risk_controlled_3m_top5`
+    - `risk_controlled_3m_half_exposure_ma150`
+    - `risk_controlled_3m_half_exposure_exp60`
 
 ## Major Modules
 
