@@ -133,9 +133,9 @@ class CrossSectionalBranchTests(unittest.TestCase):
             tuple(label for label, _ in variants),
             (
                 "original_monthly",
+                "risk_controlled_3m_half_exposure_exp60",
                 "risk_controlled_3m_half_exposure",
                 "risk_controlled_3m_half_exposure_ma150",
-                "risk_controlled_3m_half_exposure_exp60",
             ),
         )
 
@@ -235,15 +235,16 @@ class CrossSectionalBranchTests(unittest.TestCase):
                 [row["label"] for row in comparison_rows],
                 [
                     "original_monthly",
+                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure",
                     "risk_controlled_3m_half_exposure_ma150",
-                    "risk_controlled_3m_half_exposure_exp60",
                 ],
             )
             primary_row = next(
-                row for row in comparison_rows if row["label"] == "risk_controlled_3m_half_exposure"
+                row for row in comparison_rows if row["label"] == "risk_controlled_3m_half_exposure_exp60"
             )
-            self.assertEqual(primary_row["defensive_gross_exposure"], "0.5")
+            self.assertEqual(primary_row["defensive_gross_exposure"], "0.6")
+            self.assertEqual(primary_row["comparison_role"], "practical_candidate")
 
     def test_run_backtest_supports_rebalance_cadence_sensitivity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -308,14 +309,20 @@ class CrossSectionalBranchTests(unittest.TestCase):
             )
             self.assertAlmostEqual(float(primary_row["final_nav"]), result.final_nav, places=6)
             self.assertGreater(float(primary_row["turnover"]), 0.0)
+            practical_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60"
+            )
+            self.assertEqual(practical_row["comparison_role"], "practical_candidate")
             labels = [row["label"] for row in comparison_rows]
             self.assertEqual(
                 labels,
                 [
                     "original_monthly",
+                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure",
                     "risk_controlled_3m_half_exposure_ma150",
-                    "risk_controlled_3m_half_exposure_exp60",
                 ],
             )
 

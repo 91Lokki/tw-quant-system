@@ -706,6 +706,7 @@ def _write_diagnostics_report(
             f"- Rebalance Cadence: every {config.risk_controls.rebalance_cadence_months} month(s)",
             f"- Defensive Mode: {config.risk_controls.defensive_mode}",
             f"- Defensive Gross Exposure: {config.risk_controls.defensive_gross_exposure:.0%}",
+            "- Research Narrative: `original_monthly` is the pure-alpha benchmark, while `risk_controlled_3m_half_exposure_exp60` is the current practical candidate.",
             "",
             "## Headline Context",
             "",

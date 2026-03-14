@@ -29,6 +29,16 @@ def build_report(result: BacktestResult) -> str:
     ]
     if result.comparison_path is not None:
         output_artifact_lines.append(f"- Risk Comparison CSV: {result.comparison_path}")
+    comparison_focus_section = []
+    if result.comparison_path is not None:
+        comparison_focus_section = [
+            "## Comparison Focus",
+            "",
+            "- Comparison Focus: `original_monthly` is the pure-alpha benchmark line.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the preferred practical line.",
+            "- Secondary Rows: `risk_controlled_3m_half_exposure` and `risk_controlled_3m_half_exposure_ma150` remain as robustness references.",
+            "",
+        ]
     content = "\n".join(
         [
             f"# {result.project_name} Backtest Summary",
@@ -52,6 +62,7 @@ def build_report(result: BacktestResult) -> str:
             f"- Final NAV: {result.final_nav:.6f}",
             f"- Benchmark Final NAV: {result.benchmark_final_nav:.6f}",
             "",
+            *comparison_focus_section,
             "## Strategy Logic",
             "",
             strategy_notes,
@@ -148,6 +159,16 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
     ]
     if result.comparison_path is not None:
         output_artifact_lines.append(f"- Risk Comparison CSV: {result.comparison_path}")
+    comparison_focus_section = []
+    if result.comparison_path is not None:
+        comparison_focus_section = [
+            "## Comparison Focus",
+            "",
+            "- Comparison Focus: `original_monthly` remains the pure-alpha benchmark line.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the main practical line to inspect in OOS.",
+            "- Secondary Rows: `risk_controlled_3m_half_exposure` and `risk_controlled_3m_half_exposure_ma150` are appendix-level robustness checks.",
+            "",
+        ]
     content = "\n".join(
         [
             f"# {result.project_name} Walk-Forward Summary",
@@ -174,6 +195,7 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             "",
+            *comparison_focus_section,
             "## Combined Out-of-Sample Performance",
             "",
             f"- Final NAV: {result.final_nav:.6f}",

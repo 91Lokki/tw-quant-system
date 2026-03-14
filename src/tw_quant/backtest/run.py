@@ -201,6 +201,7 @@ def _write_cross_sectional_risk_comparison(
             handle,
             fieldnames=[
                 "label",
+                "comparison_role",
                 "benchmark_filter_enabled",
                 "benchmark_ma_window",
                 "defensive_mode",
@@ -235,6 +236,7 @@ def _write_cross_sectional_risk_comparison(
             writer.writerow(
                 {
                     "label": label,
+                    "comparison_role": _describe_comparison_role(label),
                     "benchmark_filter_enabled": str(
                         variant_config.risk_controls.benchmark_filter_enabled
                     ).lower(),
@@ -255,6 +257,16 @@ def _write_cross_sectional_risk_comparison(
                 }
             )
     return path
+
+
+def _describe_comparison_role(label: str) -> str:
+    if label == "original_monthly":
+        return "pure_alpha_benchmark"
+    if label == "risk_controlled_3m_half_exposure_exp60":
+        return "practical_candidate"
+    if label == "risk_controlled_3m_half_exposure":
+        return "intermediate_reference"
+    return "appendix_robustness"
 
 
 def _simulate_nav(

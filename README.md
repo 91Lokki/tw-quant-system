@@ -125,12 +125,12 @@ The current `tw_top50_liquidity` example config is the risk-controlled version o
 - same TWSE top-50 liquidity universe
 - same volatility-adjusted momentum ranking
 - adds a simple benchmark regime filter on `TAIEX`
-- uses `3m half_exposure` as the main practical line
+- uses `3m half_exposure` with `60%` defensive gross exposure as the main practical line
 - writes compact comparison artifacts for:
   - `original_monthly`
+  - `risk_controlled_3m_half_exposure_exp60`
   - `risk_controlled_3m_half_exposure`
   - `risk_controlled_3m_half_exposure_ma150`
-  - `risk_controlled_3m_half_exposure_exp60`
 
 ## Current Implemented Features
 
@@ -152,9 +152,9 @@ The current `tw_top50_liquidity` example config is the risk-controlled version o
   - benchmark regime filter based on `TAIEX` long-term trend
   - explicit regime-off defensive behavior with a narrow comparison set
 - Phase F narrows the practical comparison to:
-  - the original monthly alpha line
-  - the `3m half_exposure` practical candidate
-  - two tiny robustness checks around that practical line
+  - the `original_monthly` pure-alpha benchmark line
+  - the `risk_controlled_3m_half_exposure_exp60` practical candidate
+  - one intermediate reference and one appendix-level robustness check
 - long-only portfolio construction with explicit rebalance rules
 - daily NAV simulation with transaction cost modeling
 - walk-forward out-of-sample evaluation with configurable train/test windows

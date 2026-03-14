@@ -96,9 +96,9 @@ Current branch split:
   - now connected to branch-specific backtest, walk-forward, and diagnostics workflows
   - Phase F keeps the same alpha line but narrows the practical comparison to:
     - `original_monthly`
+    - `risk_controlled_3m_half_exposure_exp60`
     - `risk_controlled_3m_half_exposure`
     - `risk_controlled_3m_half_exposure_ma150`
-    - `risk_controlled_3m_half_exposure_exp60`
 
 ## Major Modules
 
