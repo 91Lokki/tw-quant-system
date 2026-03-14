@@ -151,7 +151,7 @@ def load_cross_sectional_backtest_inputs(
             f"每次換倉會在當期 universe 內依 signal_score 排名，挑選前 "
             f"{config.portfolio.max_positions} 檔股票並採 equal weight。"
         ),
-        "新權重在訊號日收盤後才生效，下一個 benchmark 交易日才開始承擔新權重報酬，以避免 lookahead bias。",
+        "新權重會在訊號日收盤後、再加上可設定的 benchmark 交易日延遲後才執行；預設是下一個 trading day 開始承擔新權重報酬，以避免 lookahead bias。",
         "稀疏個股日線會以 benchmark calendar 上的 as-of close 對齊；若缺少新成交日，持有期間報酬會近似為 0。",
     ]
     if delayed_listing_count > 0:
@@ -247,11 +247,17 @@ def compute_cross_sectional_backtest_data(
             participating_symbols=inputs.participating_symbols,
             signal_rows=signal_rows_by_date.get(rebalance_date, ()),
         )
+    executed_target_weights_by_date, executed_signal_scores_by_date = _schedule_executed_targets(
+        trading_dates=inputs.master_dates,
+        target_weights_by_date=target_weights_by_date,
+        signal_scores_by_date=signal_scores_by_date,
+        execution_delay_days=config.risk_controls.execution_delay_days,
+    )
     applied_weights_by_date, weight_rows = _expand_daily_weights(
         trading_dates=inputs.master_dates,
         participating_symbols=inputs.participating_symbols,
-        target_weights_by_date=target_weights_by_date,
-        signal_scores_by_date=signal_scores_by_date,
+        executed_target_weights_by_date=executed_target_weights_by_date,
+        executed_signal_scores_by_date=executed_signal_scores_by_date,
     )
     nav_rows, benchmark_final_nav = _simulate_nav(
         config=config,
@@ -260,7 +266,7 @@ def compute_cross_sectional_backtest_data(
         close_asof_by_symbol=inputs.close_asof_by_symbol,
         participating_symbols=inputs.participating_symbols,
         applied_weights_by_date=applied_weights_by_date,
-        target_weights_by_date=target_weights_by_date,
+        executed_target_weights_by_date=executed_target_weights_by_date,
     )
     metrics = compute_metrics(nav_rows, config.backtest.initial_nav)
     notes = _build_cross_sectional_computation_notes(
@@ -293,6 +299,22 @@ def build_cross_sectional_variant_configs(
                     benchmark_filter_enabled=False,
                     defensive_mode="cash",
                     rebalance_cadence_months=1,
+                    execution_delay_days=0,
+                ),
+            ),
+        ),
+        (
+            "risk_controlled_3m_half_exposure_exp60_delay1",
+            replace(
+                config,
+                risk_controls=replace(
+                    config.risk_controls,
+                    benchmark_filter_enabled=True,
+                    defensive_mode="half_exposure",
+                    benchmark_ma_window=200,
+                    defensive_gross_exposure=0.6,
+                    rebalance_cadence_months=3,
+                    execution_delay_days=1,
                 ),
             ),
         ),
@@ -307,11 +329,12 @@ def build_cross_sectional_variant_configs(
                     benchmark_ma_window=200,
                     defensive_gross_exposure=0.6,
                     rebalance_cadence_months=3,
+                    execution_delay_days=0,
                 ),
             ),
         ),
         (
-            "risk_controlled_3m_half_exposure",
+            "risk_controlled_3m_half_exposure_exp60_delay3",
             replace(
                 config,
                 risk_controls=replace(
@@ -319,22 +342,25 @@ def build_cross_sectional_variant_configs(
                     benchmark_filter_enabled=True,
                     defensive_mode="half_exposure",
                     benchmark_ma_window=200,
-                    defensive_gross_exposure=0.5,
+                    defensive_gross_exposure=0.6,
                     rebalance_cadence_months=3,
+                    execution_delay_days=3,
                 ),
             ),
         ),
         (
-            "risk_controlled_3m_half_exposure_ma150",
+            "risk_controlled_3m_half_exposure_exp60_w08",
             replace(
                 config,
+                portfolio=replace(config.portfolio, max_weight=0.08),
                 risk_controls=replace(
                     config.risk_controls,
                     benchmark_filter_enabled=True,
                     defensive_mode="half_exposure",
-                    benchmark_ma_window=150,
-                    defensive_gross_exposure=0.5,
+                    benchmark_ma_window=200,
+                    defensive_gross_exposure=0.6,
                     rebalance_cadence_months=3,
+                    execution_delay_days=0,
                 ),
             ),
         ),
@@ -473,7 +499,7 @@ def _build_cross_sectional_computation_notes(
     notes = list(base_notes)
     if config.risk_controls.benchmark_filter_enabled:
         notes.append(
-            f"Phase F 風控：只有當 {config.benchmark} 收盤高於 {config.risk_controls.benchmark_ma_window} 日移動平均時，"
+            f"Phase G 實務風控：只有當 {config.benchmark} 收盤高於 {config.risk_controls.benchmark_ma_window} 日移動平均時，"
             f"下一期才持有完整風險部位；若歷史不足或 benchmark trend 轉弱，防守模式會切換為 "
             f"{config.risk_controls.defensive_mode}，防守總曝險為 {config.risk_controls.defensive_gross_exposure:.0%}。"
         )
@@ -481,11 +507,19 @@ def _build_cross_sectional_computation_notes(
             f"本次回測中共有 {regime_blocked_count} 個有效換倉訊號日被 benchmark regime filter 關閉。"
         )
     else:
-        notes.append("Phase F 風控：benchmark regime filter 關閉，保留原始橫斷面持有規則。")
+        notes.append("Phase G 實務風控：benchmark regime filter 關閉，保留原始橫斷面持有規則。")
     if config.risk_controls.rebalance_cadence_months > 1:
         notes.append(
             f"雖然 universe 仍按月重建，但投組只會每 {config.risk_controls.rebalance_cadence_months} 個月更新一次；"
             "其餘月份延用既有持倉。"
+        )
+    if config.risk_controls.execution_delay_days > 0:
+        notes.append(
+            f"Phase G 實務檢查：每次換倉決策後，會額外等待 {config.risk_controls.execution_delay_days} 個 benchmark 交易日才執行新權重。"
+        )
+    if config.portfolio.max_weight < 0.1:
+        notes.append(
+            f"Phase G 集中度檢查：單一標的權重上限已收緊至 {config.portfolio.max_weight:.0%}。"
         )
     notes.append(
         f"有效換倉訊號日共有 {len(total_rebalance_dates)} 個，其中實際執行投組更新的 cadence 節點有 {len(effective_rebalance_dates)} 個。"
@@ -505,19 +539,45 @@ def _select_effective_rebalance_dates(
         if index % cadence_months == 0
     )
 
+
+def _schedule_executed_targets(
+    trading_dates: tuple[date, ...],
+    target_weights_by_date: dict[date, dict[str, float]],
+    signal_scores_by_date: dict[date, dict[str, float | None]],
+    execution_delay_days: int,
+) -> tuple[dict[date, dict[str, float]], dict[date, dict[str, float | None]]]:
+    executed_target_weights_by_date: dict[date, dict[str, float]] = {}
+    executed_signal_scores_by_date: dict[date, dict[str, float | None]] = {}
+    trading_index_by_date = {trading_date: index for index, trading_date in enumerate(trading_dates)}
+
+    for decision_date, target_weights in target_weights_by_date.items():
+        decision_index = trading_index_by_date.get(decision_date)
+        if decision_index is None:
+            continue
+        execution_index = decision_index + max(execution_delay_days, 0)
+        if execution_index >= len(trading_dates):
+            continue
+        execution_date = trading_dates[execution_index]
+        executed_target_weights_by_date[execution_date] = target_weights
+        executed_signal_scores_by_date[execution_date] = signal_scores_by_date.get(
+            decision_date,
+            {},
+        )
+    return executed_target_weights_by_date, executed_signal_scores_by_date
+
+
 def _expand_daily_weights(
     trading_dates: tuple[date, ...],
     participating_symbols: tuple[str, ...],
-    target_weights_by_date: dict[date, dict[str, float]],
-    signal_scores_by_date: dict[date, dict[str, float | None]],
+    executed_target_weights_by_date: dict[date, dict[str, float]],
+    executed_signal_scores_by_date: dict[date, dict[str, float | None]],
 ) -> tuple[dict[date, dict[str, float]], list[PortfolioWeightRow]]:
     current_weights = {symbol: 0.0 for symbol in participating_symbols}
     current_signal_scores = {symbol: None for symbol in participating_symbols}
     applied_weights_by_date: dict[date, dict[str, float]] = {}
     output_rows: list[PortfolioWeightRow] = []
 
-    last_index = len(trading_dates) - 1
-    for index, trading_date in enumerate(trading_dates):
+    for trading_date in trading_dates:
         applied_weights_by_date[trading_date] = current_weights.copy()
         for symbol in participating_symbols:
             output_rows.append(
@@ -529,10 +589,10 @@ def _expand_daily_weights(
                 )
             )
 
-        if trading_date in target_weights_by_date and index < last_index:
-            current_weights = target_weights_by_date[trading_date].copy()
+        if trading_date in executed_target_weights_by_date:
+            current_weights = executed_target_weights_by_date[trading_date].copy()
             current_signal_scores = {
-                symbol: signal_scores_by_date.get(trading_date, {}).get(symbol)
+                symbol: executed_signal_scores_by_date.get(trading_date, {}).get(symbol)
                 for symbol in participating_symbols
             }
 
@@ -546,7 +606,7 @@ def _simulate_nav(
     close_asof_by_symbol: dict[str, dict[date, float | None]],
     participating_symbols: tuple[str, ...],
     applied_weights_by_date: dict[date, dict[str, float]],
-    target_weights_by_date: dict[date, dict[str, float]],
+    executed_target_weights_by_date: dict[date, dict[str, float]],
 ) -> tuple[list[NavRow], float]:
     nav_rows: list[NavRow] = []
     nav = config.backtest.initial_nav
@@ -580,10 +640,10 @@ def _simulate_nav(
 
         turnover = 0.0
         transaction_cost = 0.0
-        if trading_date in target_weights_by_date and index < last_index:
+        if trading_date in executed_target_weights_by_date and index < last_index:
             turnover, cost_rate = _compute_turnover_and_cost_rate(
                 current_weights=applied_weights,
-                target_weights=target_weights_by_date[trading_date],
+                target_weights=executed_target_weights_by_date[trading_date],
                 config=config,
                 participating_symbols=participating_symbols,
             )

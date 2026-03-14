@@ -69,6 +69,7 @@ benchmark_filter_enabled = true
 benchmark_ma_window = 200
 defensive_mode = "half_exposure"
 defensive_gross_exposure = 0.6
+execution_delay_days = 1
 rebalance_cadence_months = 3
 
 [backtest]

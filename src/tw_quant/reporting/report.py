@@ -35,8 +35,10 @@ def build_report(result: BacktestResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` is the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the preferred practical line.",
-            "- Secondary Rows: `risk_controlled_3m_half_exposure` and `risk_controlled_3m_half_exposure_ma150` remain as robustness references.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the preferred practical line.",
+            "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` keeps the same practical setup without the extra one-day execution delay.",
+            "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
+            "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
             "",
         ]
     content = "\n".join(
@@ -57,6 +59,8 @@ def build_report(result: BacktestResult) -> str:
             f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
             f"- Defensive Mode: {result.defensive_mode}",
             f"- Defensive Gross Exposure: {result.defensive_gross_exposure:.0%}",
+            f"- Execution Delay Days: {result.execution_delay_days}",
+            f"- Portfolio Max Weight: {result.portfolio_max_weight:.0%}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             f"- Final NAV: {result.final_nav:.6f}",
@@ -113,8 +117,9 @@ def _strategy_logic_lines(result: BacktestResult) -> tuple[str, ...]:
     lines = [
         "- Uses the locally generated signal panel as the portfolio input for a long-only daily backtest.",
         f"- Rebalances on the first aligned trading day of each {result.rebalance_frequency} period and equal-weights selected symbols.",
-        "- Applies new target weights on the next trading day to avoid lookahead bias.",
+        f"- Applies new target weights after the signal-day close with an extra {result.execution_delay_days} trading-day execution delay; the default `0` means the next trading day remains the first active day.",
         "- Treats the benchmark as a comparison series, not as a directly held portfolio asset.",
+        f"- Caps single-name weights at {result.portfolio_max_weight:.0%}.",
         f"- Current cash behavior: {cash_behavior}",
     ]
     if result.benchmark_filter_enabled:
@@ -165,8 +170,10 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` remains the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the main practical line to inspect in OOS.",
-            "- Secondary Rows: `risk_controlled_3m_half_exposure` and `risk_controlled_3m_half_exposure_ma150` are appendix-level robustness checks.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the main practical line to inspect in OOS.",
+            "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` stays as the direct no-extra-delay reference.",
+            "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
+            "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
             "",
         ]
     content = "\n".join(
@@ -192,6 +199,8 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             f"- Benchmark MA Window: {result.benchmark_ma_window} trading days",
             f"- Defensive Mode: {result.defensive_mode}",
             f"- Defensive Gross Exposure: {result.defensive_gross_exposure:.0%}",
+            f"- Execution Delay Days: {result.execution_delay_days}",
+            f"- Portfolio Max Weight: {result.portfolio_max_weight:.0%}",
             f"- Transaction Costs: commission {result.trading_costs.commission_bps:.2f} bps, tax {result.trading_costs.tax_bps:.2f} bps, slippage {result.trading_costs.slippage_bps:.2f} bps",
             f"- Status: {result.status}",
             "",

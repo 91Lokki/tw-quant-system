@@ -58,6 +58,7 @@ class ModelTests(unittest.TestCase):
                 benchmark_ma_window=200,
                 defensive_mode="cash",
                 defensive_gross_exposure=0.5,
+                execution_delay_days=0,
                 rebalance_cadence_months=1,
             ),
             backtest=BacktestEngineConfig(
@@ -98,6 +99,8 @@ class ModelTests(unittest.TestCase):
             benchmark_ma_window=200,
             defensive_mode="cash",
             defensive_gross_exposure=0.5,
+            execution_delay_days=0,
+            portfolio_max_weight=0.1,
             start_date=date(2021, 1, 1),
             end_date=date(2021, 12, 31),
             report_path=Path("data/processed/reports/demo/backtest_summary.md"),
@@ -126,10 +129,14 @@ class ModelTests(unittest.TestCase):
         self.assertIn("Project: demo", summary)
         self.assertIn("Tradable Symbols: 2330, 0050", summary)
         self.assertIn("Benchmark Filter Enabled: True", summary)
+        self.assertIn("Execution Delay Days: 0", summary)
+        self.assertIn("Portfolio Max Weight: 0.1", summary)
         self.assertIn("Status: local-data backtest completed", summary)
         self.assertIn("- First note.", summary)
         self.assertIn("回測完成", summary_zh)
         self.assertIn("Benchmark regime filter: 開啟", summary_zh)
+        self.assertIn("額外延遲生效天數: 0", summary_zh)
+        self.assertIn("單一標的權重上限: 10%", summary_zh)
         self.assertIn("累積報酬: 12.00%", summary_zh)
         self.assertIn("權益曲線圖:", summary_zh)
 
