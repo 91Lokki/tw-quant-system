@@ -87,6 +87,7 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
         benchmark_filter_enabled=config.risk_controls.benchmark_filter_enabled,
         benchmark_ma_window=config.risk_controls.benchmark_ma_window,
         defensive_mode=config.risk_controls.defensive_mode,
+        defensive_gross_exposure=config.risk_controls.defensive_gross_exposure,
         start_date=config.start_date,
         end_date=config.end_date,
         report_path=report_path,
@@ -191,6 +192,7 @@ def _write_cross_sectional_risk_comparison(
         config.risk_controls.benchmark_filter_enabled,
         config.risk_controls.benchmark_ma_window,
         config.risk_controls.defensive_mode,
+        config.risk_controls.defensive_gross_exposure,
         config.risk_controls.rebalance_cadence_months,
     )
 
@@ -199,9 +201,11 @@ def _write_cross_sectional_risk_comparison(
             handle,
             fieldnames=[
                 "label",
+                "comparison_role",
                 "benchmark_filter_enabled",
                 "benchmark_ma_window",
                 "defensive_mode",
+                "defensive_gross_exposure",
                 "rebalance_cadence_months",
                 "final_nav",
                 "benchmark_final_nav",
@@ -219,6 +223,7 @@ def _write_cross_sectional_risk_comparison(
                 variant_config.risk_controls.benchmark_filter_enabled,
                 variant_config.risk_controls.benchmark_ma_window,
                 variant_config.risk_controls.defensive_mode,
+                variant_config.risk_controls.defensive_gross_exposure,
                 variant_config.risk_controls.rebalance_cadence_months,
             )
             if variant_signature == primary_signature:
@@ -231,11 +236,13 @@ def _write_cross_sectional_risk_comparison(
             writer.writerow(
                 {
                     "label": label,
+                    "comparison_role": _describe_comparison_role(label),
                     "benchmark_filter_enabled": str(
                         variant_config.risk_controls.benchmark_filter_enabled
                     ).lower(),
                     "benchmark_ma_window": str(variant_config.risk_controls.benchmark_ma_window),
                     "defensive_mode": variant_config.risk_controls.defensive_mode,
+                    "defensive_gross_exposure": f"{variant_config.risk_controls.defensive_gross_exposure}",
                     "rebalance_cadence_months": str(
                         variant_config.risk_controls.rebalance_cadence_months
                     ),
@@ -250,6 +257,16 @@ def _write_cross_sectional_risk_comparison(
                 }
             )
     return path
+
+
+def _describe_comparison_role(label: str) -> str:
+    if label == "original_monthly":
+        return "pure_alpha_benchmark"
+    if label == "risk_controlled_3m_half_exposure_exp60":
+        return "practical_candidate"
+    if label == "risk_controlled_3m_half_exposure":
+        return "intermediate_reference"
+    return "appendix_robustness"
 
 
 def _simulate_nav(

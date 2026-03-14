@@ -134,6 +134,9 @@ def load_settings(path: str | Path) -> AppConfig:
         ),
         benchmark_ma_window=int(risk_controls_payload.get("benchmark_ma_window", 200)),
         defensive_mode=str(risk_controls_payload.get("defensive_mode", "cash")).lower(),
+        defensive_gross_exposure=float(
+            risk_controls_payload.get("defensive_gross_exposure", 0.5)
+        ),
         rebalance_cadence_months=int(
             risk_controls_payload.get("rebalance_cadence_months", 1)
         ),
@@ -242,6 +245,8 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError(
             "risk_controls.defensive_mode must be one of cash, half_exposure, top5"
         )
+    if not (0.0 < config.risk_controls.defensive_gross_exposure <= 1.0):
+        raise ValueError("risk_controls.defensive_gross_exposure must be within (0, 1]")
     if config.risk_controls.rebalance_cadence_months <= 0:
         raise ValueError("risk_controls.rebalance_cadence_months must be positive")
     if config.backtest.initial_nav <= 0:

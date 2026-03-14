@@ -57,6 +57,7 @@ class ModelTests(unittest.TestCase):
                 benchmark_filter_enabled=False,
                 benchmark_ma_window=200,
                 defensive_mode="cash",
+                defensive_gross_exposure=0.5,
                 rebalance_cadence_months=1,
             ),
             backtest=BacktestEngineConfig(
@@ -96,6 +97,7 @@ class ModelTests(unittest.TestCase):
             benchmark_filter_enabled=True,
             benchmark_ma_window=200,
             defensive_mode="cash",
+            defensive_gross_exposure=0.5,
             start_date=date(2021, 1, 1),
             end_date=date(2021, 12, 31),
             report_path=Path("data/processed/reports/demo/backtest_summary.md"),

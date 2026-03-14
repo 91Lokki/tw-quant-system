@@ -297,13 +297,15 @@ def build_cross_sectional_variant_configs(
             ),
         ),
         (
-            "risk_controlled_3m_cash",
+            "risk_controlled_3m_half_exposure_exp60",
             replace(
                 config,
                 risk_controls=replace(
                     config.risk_controls,
                     benchmark_filter_enabled=True,
-                    defensive_mode="cash",
+                    defensive_mode="half_exposure",
+                    benchmark_ma_window=200,
+                    defensive_gross_exposure=0.6,
                     rebalance_cadence_months=3,
                 ),
             ),
@@ -316,18 +318,22 @@ def build_cross_sectional_variant_configs(
                     config.risk_controls,
                     benchmark_filter_enabled=True,
                     defensive_mode="half_exposure",
+                    benchmark_ma_window=200,
+                    defensive_gross_exposure=0.5,
                     rebalance_cadence_months=3,
                 ),
             ),
         ),
         (
-            "risk_controlled_3m_top5",
+            "risk_controlled_3m_half_exposure_ma150",
             replace(
                 config,
                 risk_controls=replace(
                     config.risk_controls,
                     benchmark_filter_enabled=True,
-                    defensive_mode="top5",
+                    defensive_mode="half_exposure",
+                    benchmark_ma_window=150,
+                    defensive_gross_exposure=0.5,
                     rebalance_cadence_months=3,
                 ),
             ),
@@ -395,7 +401,7 @@ def _build_defensive_target_weights_for_date(
         participating_symbols=participating_symbols,
         selected_rows=selected_rows,
         max_weight=config.portfolio.max_weight,
-        target_gross_exposure=0.5,
+        target_gross_exposure=config.risk_controls.defensive_gross_exposure,
     )
 
 
@@ -467,14 +473,15 @@ def _build_cross_sectional_computation_notes(
     notes = list(base_notes)
     if config.risk_controls.benchmark_filter_enabled:
         notes.append(
-            f"Phase D 風控：只有當 {config.benchmark} 收盤高於 {config.risk_controls.benchmark_ma_window} 日移動平均時，"
-            f"下一期才持有完整風險部位；若歷史不足或 benchmark trend 轉弱，防守模式會切換為 {config.risk_controls.defensive_mode}。"
+            f"Phase F 風控：只有當 {config.benchmark} 收盤高於 {config.risk_controls.benchmark_ma_window} 日移動平均時，"
+            f"下一期才持有完整風險部位；若歷史不足或 benchmark trend 轉弱，防守模式會切換為 "
+            f"{config.risk_controls.defensive_mode}，防守總曝險為 {config.risk_controls.defensive_gross_exposure:.0%}。"
         )
         notes.append(
             f"本次回測中共有 {regime_blocked_count} 個有效換倉訊號日被 benchmark regime filter 關閉。"
         )
     else:
-        notes.append("Phase D 風控：benchmark regime filter 關閉，保留原始橫斷面持有規則。")
+        notes.append("Phase F 風控：benchmark regime filter 關閉，保留原始橫斷面持有規則。")
     if config.risk_controls.rebalance_cadence_months > 1:
         notes.append(
             f"雖然 universe 仍按月重建，但投組只會每 {config.risk_controls.rebalance_cadence_months} 個月更新一次；"
