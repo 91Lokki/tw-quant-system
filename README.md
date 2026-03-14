@@ -121,16 +121,18 @@ uv run python -m tw_quant walkforward --config configs/tw_top50_liquidity.exampl
 uv run python -m tw_quant diagnostics --config configs/tw_top50_liquidity.example.toml
 ```
 
-The current `tw_top50_liquidity` example config is the risk-controlled version of the same branch:
+The current `tw_top50_liquidity` example config is the practical candidate version of the same branch:
 - same TWSE top-50 liquidity universe
 - same volatility-adjusted momentum ranking
 - adds a simple benchmark regime filter on `TAIEX`
 - uses `3m half_exposure` with `60%` defensive gross exposure as the main practical line
+- keeps `execution_delay_days = 0` as the default deployment-like assumption
 - writes compact comparison artifacts for:
   - `original_monthly`
   - `risk_controlled_3m_half_exposure_exp60`
-  - `risk_controlled_3m_half_exposure`
-  - `risk_controlled_3m_half_exposure_ma150`
+  - `risk_controlled_3m_half_exposure_exp60_delay1`
+  - `risk_controlled_3m_half_exposure_exp60_delay3`
+  - `risk_controlled_3m_half_exposure_exp60_w08`
 
 ## Current Implemented Features
 
@@ -151,10 +153,11 @@ The current `tw_top50_liquidity` example config is the risk-controlled version o
 - Phase D risk-control additions for the same Taiwan cross-sectional branch:
   - benchmark regime filter based on `TAIEX` long-term trend
   - explicit regime-off defensive behavior with a narrow comparison set
-- Phase F narrows the practical comparison to:
+- Phase G keeps the same practical candidate and adds only tiny tradability checks around it:
   - the `original_monthly` pure-alpha benchmark line
   - the `risk_controlled_3m_half_exposure_exp60` practical candidate
-  - one intermediate reference and one appendix-level robustness check
+  - `delay1` / `delay3` execution-delay checks
+  - the `w08` tighter max-weight check
 - long-only portfolio construction with explicit rebalance rules
 - daily NAV simulation with transaction cost modeling
 - walk-forward out-of-sample evaluation with configurable train/test windows

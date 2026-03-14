@@ -124,19 +124,33 @@ class CrossSectionalBranchTests(unittest.TestCase):
         self.assertAlmostEqual(sum(weights.values()), 0.6, places=6)
         self.assertEqual(weights["1105"], 0.0)
 
-    def test_build_cross_sectional_variant_configs_returns_fixed_phase_f_labels(self) -> None:
+    def test_build_cross_sectional_variant_configs_returns_fixed_phase_g_labels(self) -> None:
         config = load_backtest_settings(PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml")
 
         variants = build_cross_sectional_variant_configs(config)
+        variants_by_label = dict(variants)
 
         self.assertEqual(
             tuple(label for label, _ in variants),
             (
                 "original_monthly",
                 "risk_controlled_3m_half_exposure_exp60",
-                "risk_controlled_3m_half_exposure",
-                "risk_controlled_3m_half_exposure_ma150",
+                "risk_controlled_3m_half_exposure_exp60_delay1",
+                "risk_controlled_3m_half_exposure_exp60_delay3",
+                "risk_controlled_3m_half_exposure_exp60_w08",
             ),
+        )
+        self.assertEqual(
+            variants_by_label["risk_controlled_3m_half_exposure_exp60_delay1"].risk_controls.execution_delay_days,
+            1,
+        )
+        self.assertEqual(
+            variants_by_label["risk_controlled_3m_half_exposure_exp60_delay3"].risk_controls.execution_delay_days,
+            3,
+        )
+        self.assertEqual(
+            variants_by_label["risk_controlled_3m_half_exposure_exp60_w08"].portfolio.max_weight,
+            0.08,
         )
 
     def test_run_backtest_supports_monthly_dynamic_holdings_without_lookahead(self) -> None:
@@ -170,6 +184,91 @@ class CrossSectionalBranchTests(unittest.TestCase):
             self.assertEqual(
                 {row["symbol"]: float(row["weight"]) for row in february_02},
                 {"1101": 0.0, "1102": 0.5, "1103": 0.5},
+            )
+
+    def test_run_backtest_delays_weight_activation_by_one_extra_trading_day(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            config_path = _prepare_cross_sectional_artifacts(
+                temp_root,
+                walkforward_enabled=False,
+                risk_controls_block=textwrap.dedent(
+                    """
+                    [risk_controls]
+                    benchmark_filter_enabled = false
+                    benchmark_ma_window = 200
+                    defensive_mode = "half_exposure"
+                    defensive_gross_exposure = 0.6
+                    execution_delay_days = 1
+                    rebalance_cadence_months = 1
+                    """
+                ).strip(),
+            )
+
+            result = run_backtest(load_backtest_settings(config_path))
+
+            with result.weights_path.open("r", newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+
+            january_03 = [row for row in rows if row["date"] == "2024-01-03"]
+            january_04 = [row for row in rows if row["date"] == "2024-01-04"]
+            february_02 = [row for row in rows if row["date"] == "2024-02-02"]
+            february_05 = [row for row in rows if row["date"] == "2024-02-05"]
+
+            self.assertTrue(all(float(row["weight"]) == 0.0 for row in january_03))
+            self.assertEqual(
+                {row["symbol"]: float(row["weight"]) for row in january_04},
+                {"1101": 0.5, "1102": 0.5, "1103": 0.0},
+            )
+            self.assertEqual(
+                {row["symbol"]: float(row["weight"]) for row in february_02},
+                {"1101": 0.5, "1102": 0.5, "1103": 0.0},
+            )
+            self.assertEqual(
+                {row["symbol"]: float(row["weight"]) for row in february_05},
+                {"1101": 0.0, "1102": 0.5, "1103": 0.5},
+            )
+
+    def test_run_backtest_delays_weight_activation_by_three_extra_trading_days(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            config_path = _prepare_cross_sectional_artifacts(
+                temp_root,
+                walkforward_enabled=False,
+                risk_controls_block=textwrap.dedent(
+                    """
+                    [risk_controls]
+                    benchmark_filter_enabled = false
+                    benchmark_ma_window = 200
+                    defensive_mode = "half_exposure"
+                    defensive_gross_exposure = 0.6
+                    execution_delay_days = 3
+                    rebalance_cadence_months = 1
+                    """
+                ).strip(),
+            )
+
+            result = run_backtest(load_backtest_settings(config_path))
+
+            with result.weights_path.open("r", newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+
+            january_03 = [row for row in rows if row["date"] == "2024-01-03"]
+            january_04 = [row for row in rows if row["date"] == "2024-01-04"]
+            february_01 = [row for row in rows if row["date"] == "2024-02-01"]
+            february_02 = [row for row in rows if row["date"] == "2024-02-02"]
+            february_05 = [row for row in rows if row["date"] == "2024-02-05"]
+
+            self.assertTrue(all(float(row["weight"]) == 0.0 for row in january_03))
+            self.assertTrue(all(float(row["weight"]) == 0.0 for row in january_04))
+            self.assertTrue(all(float(row["weight"]) == 0.0 for row in february_01))
+            self.assertEqual(
+                {row["symbol"]: float(row["weight"]) for row in february_02},
+                {"1101": 0.5, "1102": 0.5, "1103": 0.0},
+            )
+            self.assertEqual(
+                {row["symbol"]: float(row["weight"]) for row in february_05},
+                {"1101": 0.5, "1102": 0.5, "1103": 0.0},
             )
 
     def test_run_walkforward_supports_cross_sectional_branch(self) -> None:
@@ -236,8 +335,9 @@ class CrossSectionalBranchTests(unittest.TestCase):
                 [
                     "original_monthly",
                     "risk_controlled_3m_half_exposure_exp60",
-                    "risk_controlled_3m_half_exposure",
-                    "risk_controlled_3m_half_exposure_ma150",
+                    "risk_controlled_3m_half_exposure_exp60_delay1",
+                    "risk_controlled_3m_half_exposure_exp60_delay3",
+                    "risk_controlled_3m_half_exposure_exp60_w08",
                 ],
             )
             primary_row = next(
@@ -245,6 +345,19 @@ class CrossSectionalBranchTests(unittest.TestCase):
             )
             self.assertEqual(primary_row["defensive_gross_exposure"], "0.6")
             self.assertEqual(primary_row["comparison_role"], "practical_candidate")
+            delay1_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60_delay1"
+            )
+            self.assertEqual(delay1_row["execution_delay_days"], "1")
+            self.assertEqual(delay1_row["comparison_role"], "practical_robustness_check")
+            w08_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60_w08"
+            )
+            self.assertEqual(w08_row["portfolio_max_weight"], "0.08")
 
     def test_run_backtest_supports_rebalance_cadence_sensitivity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -286,7 +399,8 @@ class CrossSectionalBranchTests(unittest.TestCase):
                     benchmark_filter_enabled = true
                     benchmark_ma_window = 200
                     defensive_mode = "half_exposure"
-                    defensive_gross_exposure = 0.5
+                    defensive_gross_exposure = 0.6
+                    execution_delay_days = 0
                     rebalance_cadence_months = 3
                     """
                 ).strip(),
@@ -298,33 +412,36 @@ class CrossSectionalBranchTests(unittest.TestCase):
             self.assertIsNotNone(result.comparison_path)
             assert result.comparison_path is not None
             self.assertTrue(result.comparison_path.exists())
-            self.assertAlmostEqual(result.final_nav, 1.05, places=6)
+            self.assertAlmostEqual(result.final_nav, 1.06, places=6)
             self.assertGreater(result.metrics.turnover, 0.0)
 
             comparison_rows = list(
                 csv.DictReader(result.comparison_path.open("r", newline="", encoding="utf-8"))
             )
             primary_row = next(
-                row for row in comparison_rows if row["label"] == "risk_controlled_3m_half_exposure"
-            )
-            self.assertAlmostEqual(float(primary_row["final_nav"]), result.final_nav, places=6)
-            self.assertGreater(float(primary_row["turnover"]), 0.0)
-            practical_row = next(
                 row
                 for row in comparison_rows
                 if row["label"] == "risk_controlled_3m_half_exposure_exp60"
             )
-            self.assertEqual(practical_row["comparison_role"], "practical_candidate")
+            self.assertAlmostEqual(float(primary_row["final_nav"]), result.final_nav, places=6)
+            self.assertGreater(float(primary_row["turnover"]), 0.0)
+            self.assertEqual(primary_row["comparison_role"], "practical_candidate")
+            self.assertEqual(primary_row["execution_delay_days"], "0")
             labels = [row["label"] for row in comparison_rows]
             self.assertEqual(
                 labels,
                 [
                     "original_monthly",
                     "risk_controlled_3m_half_exposure_exp60",
-                    "risk_controlled_3m_half_exposure",
-                    "risk_controlled_3m_half_exposure_ma150",
+                    "risk_controlled_3m_half_exposure_exp60_delay1",
+                    "risk_controlled_3m_half_exposure_exp60_delay3",
+                    "risk_controlled_3m_half_exposure_exp60_w08",
                 ],
             )
+            robustness_rows = [
+                row for row in comparison_rows if row["comparison_role"] == "practical_robustness_check"
+            ]
+            self.assertEqual(len(robustness_rows), 3)
 
     def test_run_walkforward_can_stay_in_cash_when_benchmark_regime_never_turns_on(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

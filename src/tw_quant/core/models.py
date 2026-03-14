@@ -117,6 +117,7 @@ class RiskControlConfig:
     benchmark_ma_window: int
     defensive_mode: str
     defensive_gross_exposure: float
+    execution_delay_days: int
     rebalance_cadence_months: int
 
 
@@ -267,6 +268,8 @@ class BacktestResult:
     benchmark_ma_window: int
     defensive_mode: str
     defensive_gross_exposure: float
+    execution_delay_days: int
+    portfolio_max_weight: float
     start_date: date
     end_date: date
     report_path: Path
@@ -295,6 +298,8 @@ class BacktestResult:
             f"Benchmark MA Window: {self.benchmark_ma_window}",
             f"Defensive Mode: {self.defensive_mode}",
             f"Defensive Gross Exposure: {self.defensive_gross_exposure}",
+            f"Execution Delay Days: {self.execution_delay_days}",
+            f"Portfolio Max Weight: {self.portfolio_max_weight}",
             f"Date range: {self.start_date.isoformat()} to {self.end_date.isoformat()}",
             f"Status: {self.status}",
             f"Final NAV: {self.final_nav:.6f}",
@@ -326,6 +331,8 @@ class BacktestResult:
             f"Benchmark MA 視窗: {self.benchmark_ma_window}",
             f"防守模式: {self.defensive_mode}",
             f"防守總曝險: {self.defensive_gross_exposure:.0%}",
+            f"額外延遲生效天數: {self.execution_delay_days}",
+            f"單一標的權重上限: {self.portfolio_max_weight:.0%}",
             f"期間: {self.start_date.isoformat()} 至 {self.end_date.isoformat()}",
             f"最終 NAV: {self.final_nav:.6f}",
             f"累積報酬: {self.metrics.cumulative_return:.2%}",
@@ -407,6 +414,8 @@ class WalkForwardResult:
     benchmark_ma_window: int
     defensive_mode: str
     defensive_gross_exposure: float
+    execution_delay_days: int
+    portfolio_max_weight: float
     window_type: str
     train_window_days: int
     test_window_days: int
@@ -438,6 +447,8 @@ class WalkForwardResult:
             f"Benchmark MA 視窗: {self.benchmark_ma_window}",
             f"防守模式: {self.defensive_mode}",
             f"防守總曝險: {self.defensive_gross_exposure:.0%}",
+            f"額外延遲生效天數: {self.execution_delay_days}",
+            f"單一標的權重上限: {self.portfolio_max_weight:.0%}",
             f"Walk-forward 設計: {self.window_type}",
             f"訓練窗長度: {self.train_window_days} 個交易日",
             f"測試窗長度: {self.test_window_days} 個交易日",

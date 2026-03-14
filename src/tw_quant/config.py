@@ -137,6 +137,7 @@ def load_settings(path: str | Path) -> AppConfig:
         defensive_gross_exposure=float(
             risk_controls_payload.get("defensive_gross_exposure", 0.5)
         ),
+        execution_delay_days=int(risk_controls_payload.get("execution_delay_days", 0)),
         rebalance_cadence_months=int(
             risk_controls_payload.get("rebalance_cadence_months", 1)
         ),
@@ -247,6 +248,8 @@ def load_settings(path: str | Path) -> AppConfig:
         )
     if not (0.0 < config.risk_controls.defensive_gross_exposure <= 1.0):
         raise ValueError("risk_controls.defensive_gross_exposure must be within (0, 1]")
+    if config.risk_controls.execution_delay_days < 0:
+        raise ValueError("risk_controls.execution_delay_days must be non-negative")
     if config.risk_controls.rebalance_cadence_months <= 0:
         raise ValueError("risk_controls.rebalance_cadence_months must be positive")
     if config.backtest.initial_nav <= 0:

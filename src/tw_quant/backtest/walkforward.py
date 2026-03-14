@@ -182,6 +182,8 @@ def run_walkforward(config: BacktestConfig) -> WalkForwardResult:
         benchmark_ma_window=config.risk_controls.benchmark_ma_window,
         defensive_mode=config.risk_controls.defensive_mode,
         defensive_gross_exposure=config.risk_controls.defensive_gross_exposure,
+        execution_delay_days=config.risk_controls.execution_delay_days,
+        portfolio_max_weight=config.portfolio.max_weight,
         window_type=config.walkforward.window_type,
         train_window_days=config.walkforward.train_window_days,
         test_window_days=config.walkforward.test_window_days,
@@ -262,7 +264,9 @@ def _write_cross_sectional_walkforward_comparison(
         config.risk_controls.benchmark_ma_window,
         config.risk_controls.defensive_mode,
         config.risk_controls.defensive_gross_exposure,
+        config.risk_controls.execution_delay_days,
         config.risk_controls.rebalance_cadence_months,
+        config.portfolio.max_weight,
     )
 
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -275,7 +279,9 @@ def _write_cross_sectional_walkforward_comparison(
                 "benchmark_ma_window",
                 "defensive_mode",
                 "defensive_gross_exposure",
+                "execution_delay_days",
                 "rebalance_cadence_months",
+                "portfolio_max_weight",
                 "window_count",
                 "final_nav",
                 "benchmark_final_nav",
@@ -294,7 +300,9 @@ def _write_cross_sectional_walkforward_comparison(
                 variant_config.risk_controls.benchmark_ma_window,
                 variant_config.risk_controls.defensive_mode,
                 variant_config.risk_controls.defensive_gross_exposure,
+                variant_config.risk_controls.execution_delay_days,
                 variant_config.risk_controls.rebalance_cadence_months,
+                variant_config.portfolio.max_weight,
             )
             if variant_signature == primary_signature:
                 nav_rows = primary_nav_rows
@@ -315,9 +323,11 @@ def _write_cross_sectional_walkforward_comparison(
                     "benchmark_ma_window": str(variant_config.risk_controls.benchmark_ma_window),
                     "defensive_mode": variant_config.risk_controls.defensive_mode,
                     "defensive_gross_exposure": f"{variant_config.risk_controls.defensive_gross_exposure}",
+                    "execution_delay_days": str(variant_config.risk_controls.execution_delay_days),
                     "rebalance_cadence_months": str(
                         variant_config.risk_controls.rebalance_cadence_months
                     ),
+                    "portfolio_max_weight": f"{variant_config.portfolio.max_weight}",
                     "window_count": str(len(window_results)),
                     "final_nav": f"{nav_rows[-1].nav}",
                     "benchmark_final_nav": f"{nav_rows[-1].benchmark_nav}",
@@ -337,9 +347,7 @@ def _describe_comparison_role(label: str) -> str:
         return "pure_alpha_benchmark"
     if label == "risk_controlled_3m_half_exposure_exp60":
         return "practical_candidate"
-    if label == "risk_controlled_3m_half_exposure":
-        return "intermediate_reference"
-    return "appendix_robustness"
+    return "practical_robustness_check"
 
 
 def _slice_market_dataset(
@@ -474,12 +482,20 @@ def _build_walkforward_notes(
     notes.append("樣本外聚合 NAV 會把各視窗的日報酬串接起來，不會把 in-sample 期間計入最終績效。")
     if config.risk_controls.benchmark_filter_enabled:
         notes.append(
-            f"Phase F 風控在 OOS 也保持一致：當 {config.benchmark} 未站上 {config.risk_controls.benchmark_ma_window} 日均線時，"
+            f"Phase G 風控在 OOS 也保持一致：當 {config.benchmark} 未站上 {config.risk_controls.benchmark_ma_window} 日均線時，"
             f"防守模式會切換為 {config.risk_controls.defensive_mode}，防守總曝險為 "
             f"{config.risk_controls.defensive_gross_exposure:.0%}。"
         )
     if config.risk_controls.rebalance_cadence_months > 1:
         notes.append(
-            f"Phase F cadence 敏感度：此 run 每 {config.risk_controls.rebalance_cadence_months} 個月才更新一次投組持倉。"
+            f"Phase G cadence 設定：此 run 每 {config.risk_controls.rebalance_cadence_months} 個月才更新一次投組持倉。"
+        )
+    if config.risk_controls.execution_delay_days > 0:
+        notes.append(
+            f"Phase G 執行延遲檢查：每次換倉決策後，會額外等待 {config.risk_controls.execution_delay_days} 個交易日才讓新權重生效。"
+        )
+    if config.portfolio.max_weight < 0.1:
+        notes.append(
+            f"Phase G 集中度檢查：單一標的權重上限收緊為 {config.portfolio.max_weight:.0%}。"
         )
     return tuple(notes)

@@ -80,6 +80,13 @@ benchmark regime filter + focused practical-line comparison
 backtest / walk-forward / diagnostics
 ```
 
+The current practical candidate remains `risk_controlled_3m_half_exposure_exp60`.
+Phase G does not add new alpha or new data paths; it only applies tiny execution-realism checks around that same line:
+
+- `delay1`
+- `delay3`
+- `w08`
+
 The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold business logic.
 
 ## Module Boundaries

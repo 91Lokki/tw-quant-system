@@ -51,6 +51,8 @@ class ReportingTests(unittest.TestCase):
                 benchmark_ma_window=200,
                 defensive_mode="cash",
                 defensive_gross_exposure=0.5,
+                execution_delay_days=1,
+                portfolio_max_weight=0.08,
                 start_date=date(2024, 1, 2),
                 end_date=date(2024, 1, 4),
                 report_path=report_dir / "backtest_summary.md",
@@ -86,7 +88,10 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("- Rebalance Frequency: monthly", report_text)
             self.assertIn("- Benchmark Regime Filter: enabled", report_text)
             self.assertIn("- Defensive Gross Exposure: 50%", report_text)
+            self.assertIn("- Execution Delay Days: 1", report_text)
+            self.assertIn("- Portfolio Max Weight: 8%", report_text)
             self.assertIn("- Risk Comparison CSV:", report_text)
+            self.assertIn("Phase G Practical Robustness Checks", report_text)
             self.assertIn("![Equity Curve](equity_curve.svg)", report_text)
             self.assertIn("![Drawdown](drawdown.svg)", report_text)
             self.assertIn("## Known Limitations", report_text)
