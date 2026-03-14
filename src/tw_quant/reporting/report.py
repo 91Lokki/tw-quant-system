@@ -35,8 +35,10 @@ def build_report(result: BacktestResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` is the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the preferred practical line.",
-            "- Phase G Practical Robustness Checks: `risk_controlled_3m_half_exposure_exp60_delay1`, `risk_controlled_3m_half_exposure_exp60_delay3`, and `risk_controlled_3m_half_exposure_exp60_w08` stress implementation timing and concentration sensitivity.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the preferred practical line.",
+            "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` keeps the same practical setup without the extra one-day execution delay.",
+            "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
+            "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
             "",
         ]
     content = "\n".join(
@@ -168,8 +170,10 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` remains the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60` is the main practical line to inspect in OOS.",
-            "- Phase G Practical Robustness Checks: `risk_controlled_3m_half_exposure_exp60_delay1`, `risk_controlled_3m_half_exposure_exp60_delay3`, and `risk_controlled_3m_half_exposure_exp60_w08` are compact implementation-realism checks.",
+            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the main practical line to inspect in OOS.",
+            "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` stays as the direct no-extra-delay reference.",
+            "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
+            "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
             "",
         ]
     content = "\n".join(

@@ -272,9 +272,13 @@ def _write_cross_sectional_risk_comparison(
 def _describe_comparison_role(label: str) -> str:
     if label == "original_monthly":
         return "pure_alpha_benchmark"
-    if label == "risk_controlled_3m_half_exposure_exp60":
+    if label == "risk_controlled_3m_half_exposure_exp60_delay1":
         return "practical_candidate"
-    return "practical_robustness_check"
+    if label == "risk_controlled_3m_half_exposure_exp60":
+        return "intermediate_reference"
+    if label == "risk_controlled_3m_half_exposure_exp60_delay3":
+        return "robustness_confirmation"
+    return "conservative_appendix"
 
 
 def _simulate_nav(

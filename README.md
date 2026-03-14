@@ -126,11 +126,11 @@ The current `tw_top50_liquidity` example config is the practical candidate versi
 - same volatility-adjusted momentum ranking
 - adds a simple benchmark regime filter on `TAIEX`
 - uses `3m half_exposure` with `60%` defensive gross exposure as the main practical line
-- keeps `execution_delay_days = 0` as the default deployment-like assumption
+- now uses `execution_delay_days = 1` as the default deployment-like assumption
 - writes compact comparison artifacts for:
   - `original_monthly`
-  - `risk_controlled_3m_half_exposure_exp60`
   - `risk_controlled_3m_half_exposure_exp60_delay1`
+  - `risk_controlled_3m_half_exposure_exp60`
   - `risk_controlled_3m_half_exposure_exp60_delay3`
   - `risk_controlled_3m_half_exposure_exp60_w08`
 
@@ -155,9 +155,10 @@ The current `tw_top50_liquidity` example config is the practical candidate versi
   - explicit regime-off defensive behavior with a narrow comparison set
 - Phase G keeps the same practical candidate and adds only tiny tradability checks around it:
   - the `original_monthly` pure-alpha benchmark line
-  - the `risk_controlled_3m_half_exposure_exp60` practical candidate
-  - `delay1` / `delay3` execution-delay checks
-  - the `w08` tighter max-weight check
+  - the `risk_controlled_3m_half_exposure_exp60_delay1` practical candidate
+  - `risk_controlled_3m_half_exposure_exp60` as the direct no-extra-delay reference
+  - `delay3` as the slower-execution robustness confirmation line
+  - the `w08` tighter max-weight appendix line
 - long-only portfolio construction with explicit rebalance rules
 - daily NAV simulation with transaction cost modeling
 - walk-forward out-of-sample evaluation with configurable train/test windows

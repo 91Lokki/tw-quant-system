@@ -304,21 +304,6 @@ def build_cross_sectional_variant_configs(
             ),
         ),
         (
-            "risk_controlled_3m_half_exposure_exp60",
-            replace(
-                config,
-                risk_controls=replace(
-                    config.risk_controls,
-                    benchmark_filter_enabled=True,
-                    defensive_mode="half_exposure",
-                    benchmark_ma_window=200,
-                    defensive_gross_exposure=0.6,
-                    rebalance_cadence_months=3,
-                    execution_delay_days=0,
-                ),
-            ),
-        ),
-        (
             "risk_controlled_3m_half_exposure_exp60_delay1",
             replace(
                 config,
@@ -330,6 +315,21 @@ def build_cross_sectional_variant_configs(
                     defensive_gross_exposure=0.6,
                     rebalance_cadence_months=3,
                     execution_delay_days=1,
+                ),
+            ),
+        ),
+        (
+            "risk_controlled_3m_half_exposure_exp60",
+            replace(
+                config,
+                risk_controls=replace(
+                    config.risk_controls,
+                    benchmark_filter_enabled=True,
+                    defensive_mode="half_exposure",
+                    benchmark_ma_window=200,
+                    defensive_gross_exposure=0.6,
+                    rebalance_cadence_months=3,
+                    execution_delay_days=0,
                 ),
             ),
         ),

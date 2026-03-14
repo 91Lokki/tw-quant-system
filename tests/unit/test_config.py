@@ -87,7 +87,7 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(config.risk_controls.benchmark_ma_window, 200)
         self.assertEqual(config.risk_controls.defensive_mode, "half_exposure")
         self.assertEqual(config.risk_controls.defensive_gross_exposure, 0.6)
-        self.assertEqual(config.risk_controls.execution_delay_days, 0)
+        self.assertEqual(config.risk_controls.execution_delay_days, 1)
         self.assertEqual(config.risk_controls.rebalance_cadence_months, 3)
 
     def test_load_settings_rejects_invalid_defensive_mode(self) -> None:
@@ -133,7 +133,7 @@ class LoadSettingsTests(unittest.TestCase):
     def test_load_settings_rejects_negative_execution_delay_days(self) -> None:
         config_path = PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml"
         bad_text = config_path.read_text(encoding="utf-8").replace(
-            "execution_delay_days = 0",
+            "execution_delay_days = 1",
             "execution_delay_days = -1",
             1,
         )

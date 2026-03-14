@@ -96,8 +96,8 @@ Current branch split:
   - now connected to branch-specific backtest, walk-forward, and diagnostics workflows
   - Phase G keeps the same alpha line and only adds tiny tradability checks around the practical line:
     - `original_monthly`
-    - `risk_controlled_3m_half_exposure_exp60`
     - `risk_controlled_3m_half_exposure_exp60_delay1`
+    - `risk_controlled_3m_half_exposure_exp60`
     - `risk_controlled_3m_half_exposure_exp60_delay3`
     - `risk_controlled_3m_half_exposure_exp60_w08`
 

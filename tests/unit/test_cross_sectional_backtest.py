@@ -134,8 +134,8 @@ class CrossSectionalBranchTests(unittest.TestCase):
             tuple(label for label, _ in variants),
             (
                 "original_monthly",
-                "risk_controlled_3m_half_exposure_exp60",
                 "risk_controlled_3m_half_exposure_exp60_delay1",
+                "risk_controlled_3m_half_exposure_exp60",
                 "risk_controlled_3m_half_exposure_exp60_delay3",
                 "risk_controlled_3m_half_exposure_exp60_w08",
             ),
@@ -334,30 +334,39 @@ class CrossSectionalBranchTests(unittest.TestCase):
                 [row["label"] for row in comparison_rows],
                 [
                     "original_monthly",
-                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure_exp60_delay1",
+                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure_exp60_delay3",
                     "risk_controlled_3m_half_exposure_exp60_w08",
                 ],
             )
-            primary_row = next(
-                row for row in comparison_rows if row["label"] == "risk_controlled_3m_half_exposure_exp60"
+            practical_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60_delay1"
             )
-            self.assertEqual(primary_row["defensive_gross_exposure"], "0.6")
-            self.assertEqual(primary_row["comparison_role"], "practical_candidate")
+            self.assertEqual(practical_row["defensive_gross_exposure"], "0.6")
+            self.assertEqual(practical_row["comparison_role"], "practical_candidate")
             delay1_row = next(
                 row
                 for row in comparison_rows
                 if row["label"] == "risk_controlled_3m_half_exposure_exp60_delay1"
             )
             self.assertEqual(delay1_row["execution_delay_days"], "1")
-            self.assertEqual(delay1_row["comparison_role"], "practical_robustness_check")
+            self.assertEqual(delay1_row["comparison_role"], "practical_candidate")
+            exp60_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60"
+            )
+            self.assertEqual(exp60_row["comparison_role"], "intermediate_reference")
             w08_row = next(
                 row
                 for row in comparison_rows
                 if row["label"] == "risk_controlled_3m_half_exposure_exp60_w08"
             )
             self.assertEqual(w08_row["portfolio_max_weight"], "0.08")
+            self.assertEqual(w08_row["comparison_role"], "conservative_appendix")
 
     def test_run_backtest_supports_rebalance_cadence_sensitivity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -425,23 +434,28 @@ class CrossSectionalBranchTests(unittest.TestCase):
             )
             self.assertAlmostEqual(float(primary_row["final_nav"]), result.final_nav, places=6)
             self.assertGreater(float(primary_row["turnover"]), 0.0)
-            self.assertEqual(primary_row["comparison_role"], "practical_candidate")
+            self.assertEqual(primary_row["comparison_role"], "intermediate_reference")
             self.assertEqual(primary_row["execution_delay_days"], "0")
+            practical_row = next(
+                row
+                for row in comparison_rows
+                if row["label"] == "risk_controlled_3m_half_exposure_exp60_delay1"
+            )
+            self.assertEqual(practical_row["comparison_role"], "practical_candidate")
             labels = [row["label"] for row in comparison_rows]
             self.assertEqual(
                 labels,
                 [
                     "original_monthly",
-                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure_exp60_delay1",
+                    "risk_controlled_3m_half_exposure_exp60",
                     "risk_controlled_3m_half_exposure_exp60_delay3",
                     "risk_controlled_3m_half_exposure_exp60_w08",
                 ],
             )
-            robustness_rows = [
-                row for row in comparison_rows if row["comparison_role"] == "practical_robustness_check"
-            ]
-            self.assertEqual(len(robustness_rows), 3)
+            role_lookup = {row["label"]: row["comparison_role"] for row in comparison_rows}
+            self.assertEqual(role_lookup["risk_controlled_3m_half_exposure_exp60_delay3"], "robustness_confirmation")
+            self.assertEqual(role_lookup["risk_controlled_3m_half_exposure_exp60_w08"], "conservative_appendix")
 
     def test_run_walkforward_can_stay_in_cash_when_benchmark_regime_never_turns_on(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
