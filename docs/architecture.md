@@ -54,6 +54,18 @@ diagnostics aggregation
 yearly tables + exposure summaries + signal summaries + diagnostics report
 ```
 
+Optional operational branch:
+
+```text
+practical-mainline config + local artifacts
+    ->
+daily decision snapshot
+    ->
+next-open-after-delay paper execution
+    ->
+paper blotter + portfolio state + NAV history
+```
+
 Presentation layer:
 
 ```text
@@ -109,13 +121,15 @@ The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold bus
 - `reporting/charts.py` renders simple SVG performance charts from the persisted NAV series
 - `reporting/report.py` writes a markdown summary for each run and links the generated chart artifacts
 - `app/streamlit_app.py` provides a lightweight local UI for browsing the generated artifacts
-- `execution/paper.py` is a placeholder for future dry-run execution support
+- `execution/paper.py` generates daily decision snapshots and maintains the file-based paper-trading ledger for the practical TWSE mainline
 - `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
 - `pipelines/signals.py` orchestrates local dataset loading, alignment, signal generation, and output
 - `pipelines/signals.py` also contains the branch split between the legacy daily baseline signals and the new monthly cross-sectional signals
 - `pipelines/backtest.py` wires the workflow together for the CLI
 - `pipelines/walkforward.py` exposes the walk-forward workflow through the CLI without changing the core engine
 - `pipelines/diagnostics.py` exposes the post-run diagnostics workflow through the CLI
+- `pipelines/decision.py` exposes the latest daily decision package through the CLI
+- `pipelines/paper.py` exposes the paper-trading ledger update workflow through the CLI
 
 ## Design Intent
 
@@ -159,5 +173,5 @@ Natural next steps from the current design:
 1. richer Taiwan universe coverage and stronger corporate-action handling
 2. more advanced signal ranking and portfolio constraints
 3. richer risk and benchmark-relative reporting
-4. paper execution built on top of the existing portfolio outputs
+4. stronger paper-trading guardrails and richer operational checks
 5. future broker execution without rewriting the research pipeline

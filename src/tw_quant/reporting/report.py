@@ -35,7 +35,7 @@ def build_report(result: BacktestResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` is the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the preferred practical line.",
+            "- Operational Mainline: `risk_controlled_3m_half_exposure_exp60_delay1` is the preferred practical line used by the daily decision workflow.",
             "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` keeps the same practical setup without the extra one-day execution delay.",
             "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
             "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
@@ -144,7 +144,7 @@ def _limitation_lines() -> tuple[str, ...]:
         "- The v1 transaction cost model is bps-based only and does not model board-lot sizing, partial fills, or exchange microstructure.",
         "- The current portfolio construction rule is intentionally simple: long-only, signal-driven, and equal-weight.",
         "- The benchmark workflow relies on the normalized TAIEX proxy series and therefore does not include full benchmark OHLCV fields.",
-        "- The project is a local research workflow; it does not include paper execution monitoring or broker connectivity yet.",
+        "- The project now includes a file-based paper-trading scaffold, but it still does not include broker connectivity or live order routing.",
     )
 
 
@@ -170,7 +170,7 @@ def build_walkforward_report(result: WalkForwardResult) -> str:
             "## Comparison Focus",
             "",
             "- Comparison Focus: `original_monthly` remains the pure-alpha benchmark line.",
-            "- Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1` is the main practical line to inspect in OOS.",
+            "- Operational Mainline: `risk_controlled_3m_half_exposure_exp60_delay1` is the main practical line to inspect in OOS.",
             "- Intermediate Reference: `risk_controlled_3m_half_exposure_exp60` stays as the direct no-extra-delay reference.",
             "- Robustness Confirmation: `risk_controlled_3m_half_exposure_exp60_delay3` is the slower-execution supporting line.",
             "- Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08` is the tighter concentration-control appendix line.",
@@ -264,7 +264,7 @@ def _walkforward_limitation_lines() -> tuple[str, ...]:
         "- The current walk-forward workflow evaluates a fixed-rule strategy; it does not refit model parameters inside each train window.",
         "- The OOS aggregation is portfolio-return based and intentionally simple, which keeps the workflow explainable but not yet feature-complete.",
         "- The benchmark view still relies on the normalized TAIEX proxy series rather than a full benchmark OHLCV history.",
-        "- The project remains a local research system and does not include live execution or broker connectivity.",
+        "- The project includes a paper-trading workflow for operational rehearsal, but it still does not include broker connectivity or live execution.",
     )
 
 

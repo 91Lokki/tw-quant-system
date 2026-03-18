@@ -12,6 +12,7 @@ from tw_quant.core.models import (
     BacktestConfig,
     DataPaths,
     IngestConfig,
+    PaperTradingConfig,
     PortfolioConfig,
     RiskControlConfig,
     SignalConfig,
@@ -174,6 +175,18 @@ def load_settings(path: str | Path) -> AppConfig:
             )
         ),
     )
+    paper_payload = payload.get("paper_trading", {})
+    paper_trading_config = PaperTradingConfig(
+        output_dir=_resolve_path(
+            str(paper_payload.get("output_subdir", "paper_trading")),
+            data_paths.processed_dir,
+        ),
+        initial_cash=float(paper_payload.get("initial_cash", 1_000_000.0)),
+        execution_model=str(
+            paper_payload.get("execution_model", "next_open_after_delay")
+        ).lower(),
+        execution_delay_days=int(paper_payload.get("execution_delay_days", 1)),
+    )
     config = AppConfig(
         project_name=str(payload["project_name"]),
         research_branch=research_branch,
@@ -191,6 +204,7 @@ def load_settings(path: str | Path) -> AppConfig:
         risk_controls=risk_controls,
         backtest=backtest_config,
         walkforward=walkforward_config,
+        paper_trading=paper_trading_config,
     )
 
     if config.start_date > config.end_date:
@@ -266,6 +280,15 @@ def load_settings(path: str | Path) -> AppConfig:
         raise ValueError(
             "walkforward.minimum_history_days must be at least as large as signals.ma_slow_window"
         )
+    if config.paper_trading is not None:
+        if config.paper_trading.initial_cash <= 0:
+            raise ValueError("paper_trading.initial_cash must be positive")
+        if config.paper_trading.execution_model != "next_open_after_delay":
+            raise ValueError(
+                "paper_trading.execution_model must be next_open_after_delay"
+            )
+        if config.paper_trading.execution_delay_days < 0:
+            raise ValueError("paper_trading.execution_delay_days must be non-negative")
     if config.signals.mode == "time_series_baseline":
         if not config.signals.enabled_symbols:
             raise ValueError("signals.enabled_symbols must contain at least one symbol")

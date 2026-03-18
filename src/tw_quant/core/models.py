@@ -141,6 +141,14 @@ class WalkForwardConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PaperTradingConfig:
+    output_dir: Path
+    initial_cash: float
+    execution_model: str
+    execution_delay_days: int
+
+
+@dataclass(frozen=True, slots=True)
 class BacktestConfig:
     project_name: str
     market: str
@@ -180,6 +188,7 @@ class AppConfig:
     risk_controls: RiskControlConfig
     backtest: BacktestEngineConfig
     walkforward: WalkForwardConfig
+    paper_trading: PaperTradingConfig | None = None
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(
@@ -715,6 +724,83 @@ class SignalResult:
             lines.append(f"- {symbol}")
         if len(self.symbols) > len(visible_symbols):
             lines.append(f"- 其餘 {len(self.symbols) - len(visible_symbols)} 檔標的已省略")
+        if self.notes:
+            lines.append("說明:")
+            lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class DailyDecisionResult:
+    strategy_id: str
+    decision_date: date
+    status: str
+    benchmark_regime_on: bool
+    rebalance_required: bool
+    execution_model: str
+    execution_delay_days: int
+    signal_date: date | None
+    scheduled_execution_date: date | None
+    target_symbols: tuple[str, ...]
+    target_cash_weight: float
+    snapshot_path: Path
+    latest_snapshot_path: Path
+    notes: tuple[str, ...]
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "每日決策產生完成",
+            f"策略識別: {self.strategy_id}",
+            f"決策日期: {self.decision_date.isoformat()}",
+            f"狀態: {self.status}",
+            f"Benchmark regime: {'開啟風險' if self.benchmark_regime_on else '防守'}",
+            f"需要換倉: {'是' if self.rebalance_required else '否'}",
+            f"執行模型: {self.execution_model}",
+            f"額外執行延遲: {self.execution_delay_days} 個交易日",
+            f"最近訊號日: {self.signal_date.isoformat() if self.signal_date else '無'}",
+            (
+                "排程執行日: "
+                f"{self.scheduled_execution_date.isoformat() if self.scheduled_execution_date else '無'}"
+            ),
+            f"目標持股數: {len(self.target_symbols)}",
+            f"目標現金權重: {self.target_cash_weight:.2%}",
+            f"當日決策檔案: {self.snapshot_path}",
+            f"最新決策檔案: {self.latest_snapshot_path}",
+        ]
+        if self.notes:
+            lines.append("說明:")
+            lines.extend(f"- {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class PaperTradingResult:
+    strategy_id: str
+    as_of_date: date
+    status: str
+    final_nav: float
+    cash_balance: float
+    holdings_count: int
+    decision_snapshot_path: Path
+    blotter_path: Path
+    state_path: Path
+    nav_history_path: Path
+    notes: tuple[str, ...]
+
+    def summary_text_zh(self) -> str:
+        lines = [
+            "Paper trading 更新完成",
+            f"策略識別: {self.strategy_id}",
+            f"截至日期: {self.as_of_date.isoformat()}",
+            f"狀態: {self.status}",
+            f"Paper NAV: {self.final_nav:.2f}",
+            f"現金餘額: {self.cash_balance:.2f}",
+            f"持倉檔數: {self.holdings_count}",
+            f"決策快照: {self.decision_snapshot_path}",
+            f"交易流水: {self.blotter_path}",
+            f"最新持倉: {self.state_path}",
+            f"NAV 歷史: {self.nav_history_path}",
+        ]
         if self.notes:
             lines.append("說明:")
             lines.extend(f"- {note}" for note in self.notes)

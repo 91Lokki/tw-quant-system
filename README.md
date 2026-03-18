@@ -125,14 +125,25 @@ The current `tw_top50_liquidity` example config is the practical candidate versi
 - same TWSE top-50 liquidity universe
 - same volatility-adjusted momentum ranking
 - adds a simple benchmark regime filter on `TAIEX`
-- uses `3m half_exposure` with `60%` defensive gross exposure as the main practical line
-- now uses `execution_delay_days = 1` as the default deployment-like assumption
+- uses `3m half_exposure` with `60%` defensive gross exposure and `1` extra execution-delay day as the operational mainline
 - writes compact comparison artifacts for:
   - `original_monthly`
   - `risk_controlled_3m_half_exposure_exp60_delay1`
   - `risk_controlled_3m_half_exposure_exp60`
   - `risk_controlled_3m_half_exposure_exp60_delay3`
   - `risk_controlled_3m_half_exposure_exp60_w08`
+
+Phase H adds a thin operational layer around the current practical mainline:
+
+```bash
+uv run python -m tw_quant decision --config configs/tw_top50_liquidity.example.toml
+uv run python -m tw_quant paper --config configs/tw_top50_liquidity.example.toml
+```
+
+Those commands do not redesign the strategy. They generate a daily decision snapshot and maintain a file-based paper-trading ledger using one explicit execution convention:
+- decision is formed after the close
+- execution happens at the next valid open after the configured delay
+- the default delay for the operational mainline is 1 extra benchmark trading day
 
 ## Current Implemented Features
 
@@ -159,10 +170,13 @@ The current `tw_top50_liquidity` example config is the practical candidate versi
   - `risk_controlled_3m_half_exposure_exp60` as the direct no-extra-delay reference
   - `delay3` as the slower-execution robustness confirmation line
   - the `w08` tighter max-weight appendix line
+- Phase H keeps the research comparison surface intact, but the operational daily-decision / paper-trading mainline is now `risk_controlled_3m_half_exposure_exp60_delay1`
 - long-only portfolio construction with explicit rebalance rules
 - daily NAV simulation with transaction cost modeling
 - walk-forward out-of-sample evaluation with configurable train/test windows
 - diagnostics for yearly breakdowns, walk-forward distributions, exposure behavior, and signal activity
+- a repeatable daily decision command for the practical TWSE mainline
+- a file-based paper-trading ledger with decision snapshots, blotter, state, and NAV history
 - markdown backtest report generation
 - SVG equity curve and drawdown chart generation
 - a lightweight Streamlit demo app for browsing local artifacts and backtest outputs
@@ -183,6 +197,12 @@ For the risk-controlled cross-sectional branch, inspect these artifacts first:
 - `data/processed/backtests/tw_top50_liquidity_v1/walkforward/risk_comparison.csv`
 - `data/processed/reports/tw_top50_liquidity_v1/backtest_summary.md`
 - `data/processed/reports/tw_top50_liquidity_v1/walkforward/walkforward_summary.md`
+
+For the operational Phase H workflow, inspect these artifacts first:
+- `data/processed/paper_trading/tw_top50_liquidity_v1/daily_decision/latest.json`
+- `data/processed/paper_trading/tw_top50_liquidity_v1/paper_trade_blotter.csv`
+- `data/processed/paper_trading/tw_top50_liquidity_v1/paper_portfolio_state.csv`
+- `data/processed/paper_trading/tw_top50_liquidity_v1/paper_nav_history.csv`
 
 ## Sample Results
 

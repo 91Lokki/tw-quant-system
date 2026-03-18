@@ -708,7 +708,7 @@ def _write_diagnostics_report(
             f"- Defensive Gross Exposure: {config.risk_controls.defensive_gross_exposure:.0%}",
             f"- Execution Delay Days: {config.risk_controls.execution_delay_days}",
             f"- Portfolio Max Weight: {config.portfolio.max_weight:.0%}",
-            "- Research Narrative: `original_monthly` is the pure-alpha benchmark, while `risk_controlled_3m_half_exposure_exp60_delay1` is now the current practical candidate.",
+            "- Research Narrative: `original_monthly` is the pure-alpha benchmark, while `risk_controlled_3m_half_exposure_exp60_delay1` is the current practical candidate and operational mainline used by the daily decision / paper-trading workflow.",
             "- Phase G Practical Checks: `delay3` is the robustness-confirmation line, and `w08` remains the conservative concentration appendix line.",
             "",
             "## Headline Context",

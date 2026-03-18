@@ -89,6 +89,14 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(config.risk_controls.defensive_gross_exposure, 0.6)
         self.assertEqual(config.risk_controls.execution_delay_days, 1)
         self.assertEqual(config.risk_controls.rebalance_cadence_months, 3)
+        assert config.paper_trading is not None
+        self.assertEqual(
+            config.paper_trading.output_dir,
+            PROJECT_ROOT / "data" / "processed" / "paper_trading",
+        )
+        self.assertEqual(config.paper_trading.initial_cash, 1_000_000.0)
+        self.assertEqual(config.paper_trading.execution_model, "next_open_after_delay")
+        self.assertEqual(config.paper_trading.execution_delay_days, 1)
 
     def test_load_settings_rejects_invalid_defensive_mode(self) -> None:
         config_path = PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml"
@@ -144,6 +152,31 @@ class LoadSettingsTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 ValueError,
                 "risk_controls.execution_delay_days must be non-negative",
+            ):
+                load_settings(temp_path)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_load_settings_rejects_invalid_paper_execution_delay(self) -> None:
+        config_path = PROJECT_ROOT / "configs" / "tw_top50_liquidity.example.toml"
+        config_text = config_path.read_text(encoding="utf-8")
+        first_occurrence = config_text.find("execution_delay_days = 1")
+        self.assertGreaterEqual(first_occurrence, 0)
+        second_occurrence = config_text.find("execution_delay_days = 1", first_occurrence + 1)
+        self.assertGreaterEqual(second_occurrence, 0)
+        bad_text = (
+            config_text[:second_occurrence]
+            + "execution_delay_days = -1"
+            + config_text[second_occurrence + len("execution_delay_days = 1"):]
+        )
+
+        temp_path = PROJECT_ROOT / "configs" / ".tmp_invalid_paper_delay.toml"
+        try:
+            temp_path.write_text(bad_text, encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError,
+                "paper_trading.execution_delay_days must be non-negative",
             ):
                 load_settings(temp_path)
         finally:

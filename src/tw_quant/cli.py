@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from pathlib import Path
 from typing import Sequence
 
 from tw_quant.pipelines.backtest import execute_backtest
+from tw_quant.pipelines.decision import execute_daily_decision
 from tw_quant.pipelines.diagnostics import execute_diagnostics
 from tw_quant.pipelines.ingest import execute_ingest
+from tw_quant.pipelines.paper import execute_paper_update
 from tw_quant.pipelines.signals import execute_signals
 from tw_quant.pipelines.walkforward import execute_walkforward
 
@@ -44,6 +47,18 @@ def _print_walkforward_summary(config_path: Path) -> int:
 
 def _print_diagnostics_summary(config_path: Path) -> int:
     result = execute_diagnostics(config_path)
+    print(result.summary_text_zh())
+    return 0
+
+
+def _print_decision_summary(config_path: Path, as_of_date: date | None = None) -> int:
+    result = execute_daily_decision(config_path, as_of_date=as_of_date)
+    print(result.summary_text_zh())
+    return 0
+
+
+def _print_paper_summary(config_path: Path, as_of_date: date | None = None) -> int:
+    result = execute_paper_update(config_path, as_of_date=as_of_date)
     print(result.summary_text_zh())
     return 0
 
@@ -145,6 +160,56 @@ if typer is not None:
         result = execute_diagnostics(config)
         typer.echo(result.summary_text_zh())
 
+    @app.command("decision")
+    def decision_command(
+        config: Path = typer.Option(
+            ...,
+            "--config",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Path to a TOML settings file.",
+        ),
+        as_of: str | None = typer.Option(
+            None,
+            "--as-of",
+            help="Optional as-of date in YYYY-MM-DD format. Defaults to the latest benchmark trading day.",
+        ),
+    ) -> None:
+        """Generate the latest daily decision snapshot for the practical mainline."""
+        result = execute_daily_decision(
+            config,
+            as_of_date=None if as_of is None else date.fromisoformat(as_of),
+        )
+        typer.echo(result.summary_text_zh())
+
+    @app.command("paper")
+    def paper_command(
+        config: Path = typer.Option(
+            ...,
+            "--config",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Path to a TOML settings file.",
+        ),
+        as_of: str | None = typer.Option(
+            None,
+            "--as-of",
+            help="Optional as-of date in YYYY-MM-DD format. Defaults to the latest benchmark trading day.",
+        ),
+    ) -> None:
+        """Roll the paper-trading ledger forward for the practical mainline."""
+        result = execute_paper_update(
+            config,
+            as_of_date=None if as_of is None else date.fromisoformat(as_of),
+        )
+        typer.echo(result.summary_text_zh())
+
 
 def _build_argparse_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -208,6 +273,38 @@ def _build_argparse_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to a TOML settings file.",
     )
+    decision_parser = subparsers.add_parser(
+        "decision",
+        help="Generate the latest daily decision snapshot for the practical mainline.",
+    )
+    decision_parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to a TOML settings file.",
+    )
+    decision_parser.add_argument(
+        "--as-of",
+        type=date.fromisoformat,
+        required=False,
+        help="Optional as-of date in YYYY-MM-DD format.",
+    )
+    paper_parser = subparsers.add_parser(
+        "paper",
+        help="Roll the paper-trading ledger forward for the practical mainline.",
+    )
+    paper_parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        help="Path to a TOML settings file.",
+    )
+    paper_parser.add_argument(
+        "--as-of",
+        type=date.fromisoformat,
+        required=False,
+        help="Optional as-of date in YYYY-MM-DD format.",
+    )
     return parser
 
 
@@ -225,6 +322,10 @@ def _run_argparse(argv: Sequence[str] | None = None) -> int:
         return _print_walkforward_summary(args.config)
     if args.command == "diagnostics":
         return _print_diagnostics_summary(args.config)
+    if args.command == "decision":
+        return _print_decision_summary(args.config, as_of_date=args.as_of)
+    if args.command == "paper":
+        return _print_paper_summary(args.config, as_of_date=args.as_of)
 
     parser.print_help()
     return 0

@@ -72,6 +72,12 @@ defensive_gross_exposure = 0.6
 execution_delay_days = 1
 rebalance_cadence_months = 3
 
+[paper_trading]
+output_subdir = "paper_trading"
+initial_cash = 1000000.0
+execution_model = "next_open_after_delay"
+execution_delay_days = 1
+
 [backtest]
 initial_nav = 1.0
 bar_input_subdir = "market_data/daily"

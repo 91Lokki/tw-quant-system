@@ -14,6 +14,8 @@ The project currently supports:
 - walk-forward out-of-sample evaluation
 - diagnostics on yearly performance, walk-forward windows, exposure, and signal behavior
 - report and chart generation
+- a repeatable daily decision workflow for the practical TWSE mainline
+- a file-based paper-trading ledger for operational rehearsal
 - a lightweight local Streamlit demo for artifact inspection
 - bilingual presentation switching in the local demo layer
 - a Taiwan cross-sectional branch based on a reproducible `TWSE top-50 liquidity` universe and monthly `volatility-adjusted momentum` signals
@@ -35,6 +37,7 @@ This project addresses that gap by building a modular research workflow for Taiw
 - inspectable
 - locally runnable
 - extendable toward paper trading and future execution
+- already capable of file-based daily decisions and paper-trading state updates without broker connectivity
 
 The original `2330/0050` route remains in the repository, but it is now explicitly treated as an early narrow baseline and a diagnosed failure case. The main forward research direction is the Taiwan cross-sectional branch.
 
@@ -100,6 +103,11 @@ Current branch split:
     - `risk_controlled_3m_half_exposure_exp60`
     - `risk_controlled_3m_half_exposure_exp60_delay3`
     - `risk_controlled_3m_half_exposure_exp60_w08`
+  - Phase H adds a thin operational layer around the practical mainline with:
+    - `risk_controlled_3m_half_exposure_exp60_delay1` as the daily decision / paper-trading mainline
+    - daily decision snapshots
+    - next-open-after-delay paper execution
+    - file-based blotter / state / NAV history artifacts
 
 ## Major Modules
 
@@ -196,6 +204,10 @@ The current workflow generates artifacts that are easy to inspect and show in a 
 - `data/processed/backtests/<project_name>/diagnostics/symbol_exposure_summary.csv`
 - `data/processed/backtests/<project_name>/diagnostics/signal_diagnostics.csv`
 - `data/processed/reports/<project_name>/diagnostics/diagnostics_summary.md`
+- `data/processed/paper_trading/<project_name>/daily_decision/latest.json`
+- `data/processed/paper_trading/<project_name>/paper_trade_blotter.csv`
+- `data/processed/paper_trading/<project_name>/paper_portfolio_state.csv`
+- `data/processed/paper_trading/<project_name>/paper_nav_history.csv`
 
 ## Sample Results
 
