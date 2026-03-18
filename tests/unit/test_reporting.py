@@ -91,7 +91,10 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("- Execution Delay Days: 1", report_text)
             self.assertIn("- Portfolio Max Weight: 8%", report_text)
             self.assertIn("- Risk Comparison CSV:", report_text)
-            self.assertIn("Current Practical Candidate: `risk_controlled_3m_half_exposure_exp60_delay1`", report_text)
+            self.assertIn(
+                "Operational Mainline: `risk_controlled_3m_half_exposure_exp60_delay1`",
+                report_text,
+            )
             self.assertIn("Conservative Appendix: `risk_controlled_3m_half_exposure_exp60_w08`", report_text)
             self.assertIn("![Equity Curve](equity_curve.svg)", report_text)
             self.assertIn("![Drawdown](drawdown.svg)", report_text)
