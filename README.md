@@ -1,117 +1,86 @@
 # tw_quant
 
-`tw_quant` is a modular Python project for quantitative research on Taiwan equities. It is built as a realistic end-of-day research and backtesting system that can later grow into paper trading or broker-connected execution, while remaining small enough to explain clearly in a university CS portfolio.
+`tw_quant` is a local, artifact-driven quantitative research system for Taiwan equities.
 
-## What This Project Does
+The repository now has two clearly separated roles:
 
-This repository implements a local research pipeline for Taiwan equities:
+- a research stack for ingestion, signals, backtest, walk-forward, diagnostics, and reporting
+- a thin operational stack for daily decision generation and paper-trading rehearsal
 
-1. ingest daily market data for Taiwan stocks, ETFs, and a benchmark
-2. normalize and cache the data locally
-3. compute simple but usable daily signals
-4. convert signals into target portfolio weights
-5. run a deterministic backtest with transaction costs
-6. generate reports and visual artifacts
-7. run walk-forward out-of-sample evaluation on the same local artifacts
+The current practical mainline is:
 
-The current project is focused on daily or slower strategies. It is not a high-frequency system, a web app, or an auto-trading bot.
+- `risk_controlled_3m_half_exposure_exp60_delay1`
 
-## Research Branches
+The current pure research benchmark line is:
 
-The repository now keeps two Taiwan-focused research branches side by side:
+- `original_monthly`
+
+This project is intentionally end-of-day, file-based, and explainable. It is not a broker-connected live trading system.
+
+## Current Focus
+
+The main forward research branch is:
+
+- `configs/tw_top50_liquidity.example.toml`
+
+It keeps the same core strategy identity:
+
+- TWSE common-stock universe
+- top-50 liquidity membership
+- volatility-adjusted momentum ranking
+- long-only portfolio construction
+- benchmark regime filter on `TAIEX`
+- 3-month rebalance cadence
+- half-exposure defensive mode
+- 60% defensive gross exposure
+- 1 extra execution-delay day in the practical operational mainline
+
+The original narrow baseline is still retained in:
 
 - `configs/settings.example.toml`
-  - the original `2330/0050 + TAIEX` narrow baseline
-  - retained as an early weak baseline / diagnosed failure case
-  - still useful for showing the project evolution and diagnostics workflow
-- `configs/tw_top50_liquidity.example.toml`
-  - the new forward research direction
-  - implements a reproducible `TWSE top-50 liquidity` universe builder and a monthly cross-sectional `volatility-adjusted momentum` signal panel
-  - now wired into a branch-specific dynamic-holdings backtest, walk-forward, and diagnostics workflow
 
-## Problem Statement
+That branch remains useful as a small baseline / failure-case reference, but it is not the recommended forward line.
 
-Many student quant projects stop at a notebook, a single script, or a one-off backtest. This project is meant to solve a more engineering-oriented problem:
+## What The Repository Does
 
-- build a clean research pipeline that is modular enough to extend
-- keep the data, signal, portfolio, backtest, and reporting stages separate
-- make the current system useful now without overbuilding a framework too early
-
-The result is a project that is credible as both a CS systems project and an applied quantitative research project.
-
-## End-to-End Pipeline
-
-```text
-baseline branch: FinMind daily data
-cross-sectional branch: TWSE official daily market data + TAIEX history
-    ->
-raw JSON cache
-    ->
-normalized daily bars
-    ->
-signal generation
-    ->
-portfolio construction
-    ->
-backtest engine
-    ->
-markdown report + SVG charts
-```
-
-Expanded workflow:
+At a high level, the pipeline is:
 
 ```text
 ingest
-  -> data/raw/finmind/*.json
-  -> data/processed/market_data/daily/*.csv
-
-signals
-  -> data/processed/signals/daily/signal_panel.csv
-
-backtest
-  -> data/processed/backtests/<project_name>/daily_nav.csv
-  -> data/processed/backtests/<project_name>/daily_weights.csv
-  -> data/processed/reports/<project_name>/backtest_summary.md
-  -> data/processed/reports/<project_name>/equity_curve.svg
-  -> data/processed/reports/<project_name>/drawdown.svg
-
-walkforward
-  -> data/processed/backtests/<project_name>/walkforward/walkforward_nav.csv
-  -> data/processed/backtests/<project_name>/walkforward/window_summary.csv
-  -> data/processed/reports/<project_name>/walkforward/walkforward_summary.md
-
-diagnostics
-  -> data/processed/backtests/<project_name>/diagnostics/yearly_return_table.csv
-  -> data/processed/backtests/<project_name>/diagnostics/walkforward_window_diagnostics.csv
-  -> data/processed/backtests/<project_name>/diagnostics/symbol_exposure_summary.csv
-  -> data/processed/backtests/<project_name>/diagnostics/signal_diagnostics.csv
-  -> data/processed/reports/<project_name>/diagnostics/diagnostics_summary.md
-
-demo app
-  -> app/streamlit_app.py
-  -> reads existing local artifacts without rerunning the quant engine
+  -> normalized daily bars
+  -> signals
+  -> portfolio weights
+  -> backtest
+  -> walk-forward
+  -> diagnostics
+  -> markdown reports + charts
+  -> daily decision + paper-trading ledger
 ```
 
-## Current Stable Workflow
+The cross-sectional branch uses:
 
-The currently recommended execution path is:
+- TWSE official daily market data for stock history
+- the stable working TAIEX benchmark-history path
+- monthly top-50 liquidity universe membership
+- monthly cross-sectional signal generation
+
+## Main Commands
+
+Sync the environment first:
 
 ```bash
 uv sync
-uv run pytest
-uv run python -m tw_quant --help
-uv run python -m tw_quant ingest --config configs/settings.example.toml --refresh
-uv run python -m tw_quant signals --config configs/settings.example.toml
-uv run python -m tw_quant backtest --config configs/settings.example.toml
-uv run python -m tw_quant walkforward --config configs/settings.example.toml
-uv run python -m tw_quant diagnostics --config configs/settings.example.toml
-uv run python -m streamlit run app/streamlit_app.py
 ```
 
-This direct module invocation is the stable workflow for the project at the moment.
-Use `--refresh` on the ingest step whenever you want to refetch official / provider data and extend local artifacts to the latest stable historical close.
+Show CLI help:
 
-For the Taiwan top-50 liquidity cross-sectional branch, use:
+```bash
+uv run python -m tw_quant --help
+```
+
+### Recommended Mainline Workflow
+
+Use this for the current TWSE practical line:
 
 ```bash
 uv run python -m tw_quant ingest --config configs/tw_top50_liquidity.example.toml --refresh
@@ -119,247 +88,259 @@ uv run python -m tw_quant signals --config configs/tw_top50_liquidity.example.to
 uv run python -m tw_quant backtest --config configs/tw_top50_liquidity.example.toml
 uv run python -m tw_quant walkforward --config configs/tw_top50_liquidity.example.toml
 uv run python -m tw_quant diagnostics --config configs/tw_top50_liquidity.example.toml
-```
-
-The current `tw_top50_liquidity` example config is the practical candidate version of the same branch:
-- same TWSE top-50 liquidity universe
-- same volatility-adjusted momentum ranking
-- adds a simple benchmark regime filter on `TAIEX`
-- uses `3m half_exposure` with `60%` defensive gross exposure and `1` extra execution-delay day as the operational mainline
-- writes compact comparison artifacts for:
-  - `original_monthly`
-  - `risk_controlled_3m_half_exposure_exp60_delay1`
-  - `risk_controlled_3m_half_exposure_exp60`
-  - `risk_controlled_3m_half_exposure_exp60_delay3`
-  - `risk_controlled_3m_half_exposure_exp60_w08`
-
-Phase H adds a thin operational layer around the current practical mainline:
-
-```bash
 uv run python -m tw_quant decision --config configs/tw_top50_liquidity.example.toml
 uv run python -m tw_quant paper --config configs/tw_top50_liquidity.example.toml
 ```
 
-Those commands do not redesign the strategy. They generate a daily decision snapshot and maintain a file-based paper-trading ledger using one explicit execution convention:
-- decision is formed after the close
+Optional `as-of` usage for the operational layer:
+
+```bash
+uv run python -m tw_quant decision --config configs/tw_top50_liquidity.example.toml --as-of 2026-03-10
+uv run python -m tw_quant paper --config configs/tw_top50_liquidity.example.toml --as-of 2026-03-10
+```
+
+### Baseline Workflow
+
+Use this only for the original narrow baseline branch:
+
+```bash
+uv run python -m tw_quant ingest --config configs/settings.example.toml --refresh
+uv run python -m tw_quant signals --config configs/settings.example.toml
+uv run python -m tw_quant backtest --config configs/settings.example.toml
+uv run python -m tw_quant walkforward --config configs/settings.example.toml
+uv run python -m tw_quant diagnostics --config configs/settings.example.toml
+```
+
+## Practical Mainline And Comparison Surface
+
+The repo now distinguishes between:
+
+- the practical operational mainline used by `decision` and `paper`
+- the historical comparison surface used by backtest and walk-forward reports
+
+### Operational Mainline
+
+- `risk_controlled_3m_half_exposure_exp60_delay1`
+
+This is the current file-based paper-trading line.
+
+### Default Comparison Rows
+
+The compact comparison artifacts are centered on:
+
+- `original_monthly`
+- `risk_controlled_3m_half_exposure_exp60_delay1`
+- `risk_controlled_3m_half_exposure_exp60`
+- `risk_controlled_3m_half_exposure_exp60_delay3`
+- `risk_controlled_3m_half_exposure_exp60_w08`
+
+Interpretation:
+
+- `original_monthly`: pure-alpha benchmark
+- `risk_controlled_3m_half_exposure_exp60_delay1`: practical candidate / operational mainline
+- `risk_controlled_3m_half_exposure_exp60`: no-extra-delay reference
+- `risk_controlled_3m_half_exposure_exp60_delay3`: slower-execution robustness confirmation
+- `risk_controlled_3m_half_exposure_exp60_w08`: conservative concentration-control appendix
+
+## Phase H Operational Layer
+
+Phase H adds a narrow operational scaffold around the practical mainline.
+
+It is designed to answer:
+
+- what is today’s target portfolio?
+- do I need to rebalance?
+- when should the rebalance take effect?
+- what would the paper portfolio and NAV look like if I follow the current operational rule set?
+
+### Daily Decision Output
+
+The `decision` command generates a daily decision snapshot with:
+
+- decision date
+- strategy identifier
+- benchmark regime state
+- rebalance-required status
+- execution delay
+- scheduled execution date
+- target symbols
+- target weights
+- target cash weight
+- trade list versus prior holdings
+
+Primary artifact:
+
+- `data/processed/paper_trading/<project>/daily_decision/latest.json`
+
+### Paper-Trading Ledger
+
+The `paper` command maintains a persistent paper-trading ledger with:
+
+- decision snapshots
+- trade blotter
+- latest portfolio state
+- NAV history
+
+Primary artifacts:
+
+- `data/processed/paper_trading/<project>/paper_trade_blotter.csv`
+- `data/processed/paper_trading/<project>/paper_portfolio_state.csv`
+- `data/processed/paper_trading/<project>/paper_nav_history.csv`
+
+### Execution Convention
+
+Phase H intentionally uses exactly one simple execution rule:
+
+- the decision is formed after the close
 - execution happens at the next valid open after the configured delay
-- the default delay for the operational mainline is 1 extra benchmark trading day
+- the practical mainline uses `execution_delay_days = 1`
 
-## Current Implemented Features
+This rule is for the operational paper-trading layer only.
+It does not turn the historical backtest into a full execution simulator.
 
-- typed TOML configuration for ingestion, signals, portfolio, and backtest settings
-- branch-aware Taiwan daily market data ingestion:
-  - baseline branch uses FinMind for the narrow failure-case baseline
-  - cross-sectional branch uses TWSE official daily market data for feasible large-universe research
-- local raw JSON caching and normalized CSV storage
-- schema validation and shared-date alignment for normalized bars
-- signal generation with:
-  - moving average trend
-  - lookback momentum
-  - rolling volatility filter
-- Phase A Taiwan cross-sectional research additions:
-  - TWSE common-stock metadata artifact
-  - monthly top-50 liquidity universe membership using 60-day average `Trading_money`
-  - monthly `volatility-adjusted momentum` signal panel for the selected universe
-- Phase D risk-control additions for the same Taiwan cross-sectional branch:
-  - benchmark regime filter based on `TAIEX` long-term trend
-  - explicit regime-off defensive behavior with a narrow comparison set
-- Phase G keeps the same practical candidate and adds only tiny tradability checks around it:
-  - the `original_monthly` pure-alpha benchmark line
-  - the `risk_controlled_3m_half_exposure_exp60_delay1` practical candidate
-  - `risk_controlled_3m_half_exposure_exp60` as the direct no-extra-delay reference
-  - `delay3` as the slower-execution robustness confirmation line
-  - the `w08` tighter max-weight appendix line
-- Phase H keeps the research comparison surface intact, but the operational daily-decision / paper-trading mainline is now `risk_controlled_3m_half_exposure_exp60_delay1`
-- long-only portfolio construction with explicit rebalance rules
-- daily NAV simulation with transaction cost modeling
-- walk-forward out-of-sample evaluation with configurable train/test windows
-- diagnostics for yearly breakdowns, walk-forward distributions, exposure behavior, and signal activity
-- a repeatable daily decision command for the practical TWSE mainline
-- a file-based paper-trading ledger with decision snapshots, blotter, state, and NAV history
-- markdown backtest report generation
-- SVG equity curve and drawdown chart generation
-- a lightweight Streamlit demo app for browsing local artifacts and backtest outputs
-- unit and integration tests around the main workflow
+### Operational Guardrails
 
-## Major Modules
+The paper-trading layer stays narrow and explicit.
+It will block or constrain trading when required inputs are not safe enough.
 
-- `src/tw_quant/data/`: ingestion, normalization, storage, and local dataset loading
-- `src/tw_quant/signals/`: daily signal generation and signal panel loading
-- `src/tw_quant/portfolio/`: target weight construction and weight propagation
-- `src/tw_quant/backtest/`: baseline fixed-symbol backtests plus the Taiwan top-50 cross-sectional branch backtest path
-- `src/tw_quant/reporting/`: markdown reports and SVG performance charts
-- `src/tw_quant/pipelines/`: thin orchestration layer used by the CLI
-- `app/`: local Streamlit demo for showing project artifacts interactively
+Examples:
 
-For the risk-controlled cross-sectional branch, inspect these artifacts first:
+- missing benchmark data
+- missing current market data for a target symbol
+- stale signal / membership artifacts
+- target weights violating hard portfolio limits
+- insufficient cash after transaction costs
+
+Cash handling is deterministic and auditable:
+
+- paper cash is not allowed to go negative
+- if buy orders would breach cash after estimated costs, they are scaled down proportionally
+- the scaling note is written to the blotter, NAV history, and paper state artifacts
+
+## Key Output Paths
+
+### Research Artifacts
+
+- normalized daily bars:
+  - `data/processed/market_data/daily/`
+- signal panels:
+  - `data/processed/signals/daily/`
+  - `data/processed/signals/monthly/`
+- backtests:
+  - `data/processed/backtests/<project>/`
+- reports:
+  - `data/processed/reports/<project>/`
+
+### Useful Files To Inspect First
+
+For the mainline research branch:
+
 - `data/processed/backtests/tw_top50_liquidity_v1/risk_comparison.csv`
 - `data/processed/backtests/tw_top50_liquidity_v1/walkforward/risk_comparison.csv`
 - `data/processed/reports/tw_top50_liquidity_v1/backtest_summary.md`
 - `data/processed/reports/tw_top50_liquidity_v1/walkforward/walkforward_summary.md`
+- `data/processed/reports/tw_top50_liquidity_v1/diagnostics/diagnostics_summary.md`
 
-For the operational Phase H workflow, inspect these artifacts first:
+For the Phase H operational layer:
+
 - `data/processed/paper_trading/tw_top50_liquidity_v1/daily_decision/latest.json`
 - `data/processed/paper_trading/tw_top50_liquidity_v1/paper_trade_blotter.csv`
 - `data/processed/paper_trading/tw_top50_liquidity_v1/paper_portfolio_state.csv`
 - `data/processed/paper_trading/tw_top50_liquidity_v1/paper_nav_history.csv`
 
-## Sample Results
+## Repository Structure
 
-Example backtest from the current repository artifacts:
+Main modules:
 
-- project: `tw_quant_v1`
-- period: `2014-01-01` to `2026-03-10`
-- tradable symbols: `2330`, `0050`
-- benchmark: `TAIEX`
-- rebalance frequency: monthly
+- `src/tw_quant/data/`
+  - provider access, normalization, storage, loading
+- `src/tw_quant/universe/`
+  - TWSE liquidity-universe construction
+- `src/tw_quant/signals/`
+  - daily and cross-sectional signal generation / loading
+- `src/tw_quant/portfolio/`
+  - target weight construction
+- `src/tw_quant/backtest/`
+  - historical simulation, metrics, walk-forward
+- `src/tw_quant/diagnostics/`
+  - artifact-based post-run analysis
+- `src/tw_quant/reporting/`
+  - markdown summaries and SVG charts
+- `src/tw_quant/execution/`
+  - daily decision and paper-trading helpers
+- `src/tw_quant/pipelines/`
+  - thin CLI-facing orchestration layer
+- `app/`
+  - local Streamlit artifact browser
 
-Headline metrics:
+## Configuration
 
-- final NAV: `1.078122`
-- cumulative return: `7.8122%`
-- annualized return: `0.6382%`
-- annualized volatility: `26.4214%`
-- Sharpe ratio: `0.2690`
-- max drawdown: `-76.3137%`
-- cumulative turnover: `38.000000`
+The main production-like example config is:
 
-Current walk-forward out-of-sample headline metrics:
+- [`configs/tw_top50_liquidity.example.toml`](configs/tw_top50_liquidity.example.toml)
 
-- combined OOS period: `2015-01-09` to `2026-03-10`
-- walk-forward final NAV: `1.071010`
-- walk-forward cumulative return: `7.1010%`
-- walk-forward annualized return: `0.6391%`
-- walk-forward annualized volatility: `27.2575%`
-- walk-forward Sharpe ratio: `0.2786`
-- walk-forward max drawdown: `-77.1872%`
+It currently defaults to:
 
-Generated portfolio-facing artifacts:
+- `benchmark_filter_enabled = true`
+- `benchmark_ma_window = 200`
+- `defensive_mode = "half_exposure"`
+- `defensive_gross_exposure = 0.6`
+- `execution_delay_days = 1`
+- `rebalance_cadence_months = 3`
 
-- [Backtest Summary](data/processed/reports/tw_quant_v1/backtest_summary.md)
-- [Equity Curve SVG](data/processed/reports/tw_quant_v1/equity_curve.svg)
-- [Drawdown SVG](data/processed/reports/tw_quant_v1/drawdown.svg)
+## Testing
 
-The local demo app can display these artifacts directly and also show recent NAV rows, recent weights, and artifact status.
-
-## Outputs Generated by the Pipeline
-
-After running the stable workflow, the main outputs are:
-
-- normalized daily bars in `data/processed/market_data/daily/`
-- signal panel in `data/processed/signals/daily/signal_panel.csv`
-- TWSE stock metadata in `data/processed/metadata/twse_stock_info.csv`
-- usable TWSE stock metadata in `data/processed/metadata/twse_usable_stock_info.csv`
-- per-symbol price availability in `data/processed/metadata/twse_price_availability.csv`
-- monthly universe membership in `data/processed/universe/tw_top50_liquidity_membership.csv`
-- monthly cross-sectional signal panel in `data/processed/signals/monthly/cross_sectional_signal_panel.csv`
-- daily NAV in `data/processed/backtests/<project_name>/daily_nav.csv`
-- daily weights in `data/processed/backtests/<project_name>/daily_weights.csv`
-- walk-forward NAV in `data/processed/backtests/<project_name>/walkforward/walkforward_nav.csv`
-- walk-forward window summary in `data/processed/backtests/<project_name>/walkforward/window_summary.csv`
-- yearly diagnostics table in `data/processed/backtests/<project_name>/diagnostics/yearly_return_table.csv`
-- walk-forward diagnostics table in `data/processed/backtests/<project_name>/diagnostics/walkforward_window_diagnostics.csv`
-- symbol exposure summary in `data/processed/backtests/<project_name>/diagnostics/symbol_exposure_summary.csv`
-- signal diagnostics summary in `data/processed/backtests/<project_name>/diagnostics/signal_diagnostics.csv`
-- markdown report in `data/processed/reports/<project_name>/backtest_summary.md`
-- walk-forward markdown report in `data/processed/reports/<project_name>/walkforward/walkforward_summary.md`
-- diagnostics markdown report in `data/processed/reports/<project_name>/diagnostics/diagnostics_summary.md`
-- equity curve chart in `data/processed/reports/<project_name>/equity_curve.svg`
-- drawdown chart in `data/processed/reports/<project_name>/drawdown.svg`
-- interactive local demo app in `app/streamlit_app.py`
-
-## Walk-Forward Evaluation
-
-The project now includes a lightweight walk-forward workflow so evaluation is not limited to a single full-period historical backtest.
-
-For v1, the recommended design is an `expanding` window:
-
-- reserve an initial in-sample history window
-- evaluate the next out-of-sample test window
-- roll forward and repeat
-- aggregate only the out-of-sample results into a combined NAV series
-
-This matters because it makes the project look more like a real research system and less like a single in-sample result.
-
-Run it with:
+Run the test suite with:
 
 ```bash
-uv run python -m tw_quant walkforward --config configs/settings.example.toml
+uv run pytest
 ```
 
-## Local Demo App
+This covers:
 
-The repository includes a small Streamlit-based local demo interface for presentation and review.
+- config loading and validation
+- provider parsing
+- signal / backtest behavior
+- walk-forward behavior
+- diagnostics compatibility
+- daily decision generation
+- paper-trading ledger behavior
 
-It is designed to help a reviewer quickly inspect:
+## What Is Intentionally Not Included
 
-- what artifacts currently exist
-- current backtest summary metrics
-- generated equity curve and drawdown charts
-- recent weights and signal scores
-- recent NAV rows and timeseries behavior
-- a bilingual presentation view through Traditional Chinese / English language switching
+This repository deliberately does not try to do everything.
 
-The demo is intentionally portfolio-oriented:
+Still out of scope:
 
-- a top-level project summary
-- scan-friendly KPI cards
-- pipeline status and artifact freshness
-- latest portfolio snapshot
-- recent NAV and weight inspection tables
+- new alpha-family expansion in the operational layer
+- broker API integration
+- live order routing
+- board-lot sizing
+- partial fills
+- multiple execution models
+- generic optimization frameworks
+- ML-based modeling
+- dashboard-heavy productization
 
-Run it with:
+## Optional Demo App
+
+There is also a local Streamlit app for browsing existing artifacts:
 
 ```bash
 uv run python -m streamlit run app/streamlit_app.py
 ```
 
-The app reads existing local artifacts. It does not rerun ingestion, signal generation, or the backtest engine.
+The app reads local outputs only.
+It does not rerun ingestion, signals, or backtests.
 
-## Why This Is a Meaningful CS Portfolio Project
+## Recommended Companion Docs
 
-This project is stronger than a toy quant script because it demonstrates:
-
-- modular system design instead of notebook-only analysis
-- explicit data contracts and local storage conventions
-- deterministic pipeline stages that can be tested independently
-- realistic engineering tradeoffs around scope, extensibility, and maintainability
-- a direct path from research workflow to future paper trading or execution support
-
-It is also specific enough to be memorable: the project is about Taiwan equities, not a generic stock-market demo.
-
-## Current Limitations
-
-- the benchmark series uses a normalized TAIEX proxy source and does not include full OHLCV fields
-- the original `2330/0050` branch is intentionally retained as a weak baseline / failure case, not as the recommended forward research direction
-- the new TWSE top-50 liquidity branch is now the main forward research direction and is fully connected to backtest, walk-forward, and diagnostics
-- the cross-sectional branch only uses symbols confirmed to have usable local price history for the configured research range; if the effective candidate pool is too small, the pipeline now fails explicitly instead of silently using partial artifacts
-- the strategy logic is intentionally simple and long-only
-- the transaction cost model is bps-based and does not model lot size or fill mechanics
-- the project is local-file based and does not include a database layer
-- there is no paper execution monitoring or broker integration yet
-
-## Roadmap
-
-Short-to-medium term roadmap:
-
-1. richer Taiwan equity universe coverage and stronger data validation
-2. better ranking and portfolio sizing logic
-3. richer reporting and benchmark-relative analytics
-4. more realistic execution assumptions in the backtest engine
-5. paper trading built on top of the existing local pipeline
-6. future broker execution once the research workflow is stable
-
-## Documentation Guide
-
-Recommended files to open:
-
-- [Project Overview](docs/project_overview.md)
-- [Architecture Notes](docs/architecture.md)
-- [Top-50 Liquidity Config](configs/tw_top50_liquidity.example.toml)
-- [Latest Sample Backtest Report](data/processed/reports/tw_quant_v1/backtest_summary.md)
-- [Local Demo App](app/streamlit_app.py)
+- [`docs/project_overview.md`](docs/project_overview.md)
+- [`docs/architecture.md`](docs/architecture.md)
+- [`configs/tw_top50_liquidity.example.toml`](configs/tw_top50_liquidity.example.toml)
+- [`src/tw_quant/cli.py`](src/tw_quant/cli.py)
 
 ## Disclaimer
 
-This repository is a software engineering and quantitative research project. It is not investment advice, and it is not configured for live trading.
+This repository is a software engineering and quantitative research project.
+It is not investment advice, and it is not a broker-connected live trading system.

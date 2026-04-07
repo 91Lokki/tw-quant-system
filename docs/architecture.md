@@ -2,176 +2,287 @@
 
 ## Overview
 
-`tw_quant` is organized around the core stages of a daily quantitative trading workflow for Taiwan equities:
+`tw_quant` is structured as a staged local workflow for Taiwan equities.
+
+The architecture is intentionally simple:
+
+- local-file-first
+- typed configuration
+- deterministic pipeline stages
+- explicit artifacts between stages
+- thin CLI orchestration
+
+The goal is not to build a general quant platform.
+The goal is to build one believable, maintainable research system that can extend into paper trading without rewriting everything.
+
+## Top-Level Flow
 
 ```text
 ingest
   -> normalized bars
   -> signals
-  -> portfolio construction
+  -> portfolio targets
   -> backtest
+  -> walk-forward
+  -> diagnostics
   -> reports
+  -> daily decision
+  -> paper-trading ledger
 ```
 
-Full data flow:
+## Branch Structure
+
+There are two active research branches in the same codebase.
+
+### Baseline Branch
+
+- narrow `2330/0050 + TAIEX` baseline
+- config: `configs/settings.example.toml`
+- retained as a failure-case / diagnostic reference
+
+### TWSE Cross-Sectional Branch
+
+- top-50 liquidity universe
+- monthly cross-sectional signal panel
+- dynamic portfolio weights
+- branch-specific backtest / walk-forward / diagnostics
+- operational daily decision + paper-trading scaffold
+
+This is the main forward branch.
+
+## Data Flow
+
+### Research Data Flow
 
 ```text
-baseline branch: FinMind provider
-cross-sectional branch: TWSE official daily market + TAIEX history
+TWSE official stock market data + stable TAIEX benchmark history
     ->
-raw JSON cache
+raw cache
     ->
 normalized daily bar CSVs
     ->
-signal panel CSV
+monthly universe membership
     ->
-target portfolio weights
+monthly signal panel
+    ->
+target weights
     ->
 daily NAV simulation
     ->
-markdown report + SVG charts
+reports + diagnostics
 ```
 
-Optional research evaluation branch:
+### Operational Data Flow
 
 ```text
-aligned local bars + signal panel
-    ->
-walk-forward window splitting
-    ->
-repeated out-of-sample backtest segments
-    ->
-combined OOS NAV + walk-forward report
-```
-
-Optional analysis branch:
-
-```text
-backtest NAV + weights + signal panel + walk-forward windows
-    ->
-diagnostics aggregation
-    ->
-yearly tables + exposure summaries + signal summaries + diagnostics report
-```
-
-Optional operational branch:
-
-```text
-practical-mainline config + local artifacts
+practical-mainline config + existing local artifacts
     ->
 daily decision snapshot
     ->
-next-open-after-delay paper execution
+scheduled paper execution
     ->
-paper blotter + portfolio state + NAV history
+trade blotter
+    ->
+latest portfolio state
+    ->
+paper NAV history
 ```
 
-Presentation layer:
+## Mainline Strategy Positioning
 
-```text
-local artifacts
-    ->
-Streamlit demo app
-    ->
-interactive inspection for reviewers
-```
+The repository distinguishes between:
 
-Taiwan cross-sectional branch:
+- the pure-alpha benchmark line
+- the practical operational mainline
+- a few compact supporting comparison rows
 
-```text
-TWSE official daily market snapshots + TWSE official TAIEX history
-    ->
-observed TWSE common-stock candidate master
-    ->
-monthly top-50 liquidity membership (60-day average Trading_money)
-    ->
-monthly volatility-adjusted momentum signal panel
-    ->
-benchmark regime filter + focused practical-line comparison
-    ->
-backtest / walk-forward / diagnostics
-```
+Current interpretation:
 
-The current practical candidate is now `risk_controlled_3m_half_exposure_exp60_delay1`.
-Phase G does not add new alpha or new data paths; it only applies tiny execution-realism checks around that same line:
+- `original_monthly`
+  - pure-alpha benchmark
+- `risk_controlled_3m_half_exposure_exp60_delay1`
+  - practical operational mainline
+- `risk_controlled_3m_half_exposure_exp60`
+  - no-extra-delay reference
+- `risk_controlled_3m_half_exposure_exp60_delay3`
+  - robustness-confirmation line
+- `risk_controlled_3m_half_exposure_exp60_w08`
+  - conservative appendix
 
-- `risk_controlled_3m_half_exposure_exp60` as the direct no-extra-delay reference
-- `delay3` as the robustness-confirmation line
-- `w08` as the conservative concentration appendix
-
-The CLI is intentionally thin. Its job is to trigger a pipeline, not to hold business logic.
+The architecture supports these comparisons without turning the codebase into a general tuning framework.
 
 ## Module Boundaries
 
-- `config.py` loads typed settings from TOML
-- `core/models.py` defines shared dataclasses used across the implemented research workflow
-- `data/providers.py` fetches raw market data from either FinMind or TWSE official endpoints, depending on the research branch
-- `data/normalize.py` enforces the project-wide daily bar schema
-- `data/loader.py` loads normalized local bars, validates schema, and aligns symbols by date
-- `data/store.py` writes raw JSON caches and normalized CSV files
-- `data/io.py` manages local directory conventions for raw data, processed data, and reports
-- `signals/generate.py` computes the first real daily signal set from normalized bars
-- `universe/liquidity.py` builds the concrete Phase A TWSE top-50 liquidity universe membership artifact
-- `signals/loader.py` loads the persisted signal panel for portfolio construction and backtesting
-- `portfolio/construct.py` turns signal rows into rebalance targets and daily applied weights
-- `backtest/run.py` simulates both the legacy fixed-symbol baseline and the Taiwan top-50 cross-sectional branch
-- `backtest/walkforward.py` runs expanding or rolling walk-forward evaluation on top of either branch
-- `backtest/metrics.py` computes core performance metrics
-- `diagnostics/analyze.py` reads persisted artifacts and explains yearly performance, walk-forward behavior, exposure usage, and signal activity
-- `reporting/charts.py` renders simple SVG performance charts from the persisted NAV series
-- `reporting/report.py` writes a markdown summary for each run and links the generated chart artifacts
-- `app/streamlit_app.py` provides a lightweight local UI for browsing the generated artifacts
-- `execution/paper.py` generates daily decision snapshots and maintains the file-based paper-trading ledger for the practical TWSE mainline
-- `pipelines/ingest.py` orchestrates provider fetch, normalization, and local caching
-- `pipelines/signals.py` orchestrates local dataset loading, alignment, signal generation, and output
-- `pipelines/signals.py` also contains the branch split between the legacy daily baseline signals and the new monthly cross-sectional signals
-- `pipelines/backtest.py` wires the workflow together for the CLI
-- `pipelines/walkforward.py` exposes the walk-forward workflow through the CLI without changing the core engine
-- `pipelines/diagnostics.py` exposes the post-run diagnostics workflow through the CLI
-- `pipelines/decision.py` exposes the latest daily decision package through the CLI
-- `pipelines/paper.py` exposes the paper-trading ledger update workflow through the CLI
+### `config.py`
 
-## Design Intent
+Loads typed settings from TOML and validates:
 
-This repository is intentionally structured like a real system, but it avoids abstractions that do not yet earn their keep.
+- research branch selection
+- cost settings
+- risk-control settings
+- paper-trading settings
 
-Current design choices:
+### `core/models.py`
 
-- local-file-first storage
-- typed configuration instead of notebook-only parameters
-- deterministic pipeline stages
-- small, explicit contracts between modules
-- simple portfolio and backtest logic that is easy to inspect
-- a concrete, non-generic Taiwan cross-sectional branch for top-liquidity universe research
+Defines the shared dataclasses used across:
 
-Not included yet:
+- ingestion
+- signal generation
+- backtest
+- walk-forward
+- diagnostics
+- decision outputs
+- paper-trading outputs
 
-- live broker integration
+### `data/`
+
+Responsible for:
+
+- provider access
+- raw payload handling
+- daily-bar normalization
+- local CSV persistence
+- local dataset loading
+
+Important design choice:
+
+- the stable TWSE historical ingest path and the stable benchmark-history path are kept separate from strategy logic
+
+### `universe/`
+
+Responsible for:
+
+- TWSE candidate filtering
+- liquidity-based membership construction
+
+### `signals/`
+
+Responsible for:
+
+- signal calculation
+- persisted signal-panel loading
+
+### `portfolio/`
+
+Responsible for:
+
+- converting signal rows into target portfolio weights
+
+### `backtest/`
+
+Responsible for:
+
+- historical simulation
+- metrics
+- walk-forward splitting and aggregation
+- compact comparison artifact generation
+
+Important design choice:
+
+- historical backtest remains a research engine
+- it is not rewritten as a broker-style execution simulator
+
+### `diagnostics/`
+
+Responsible for:
+
+- artifact-based post-run interpretation
+- yearly tables
+- walk-forward diagnostics
+- symbol exposure summaries
+- signal diagnostics
+
+### `reporting/`
+
+Responsible for:
+
+- markdown summaries
+- SVG equity-curve and drawdown charts
+
+### `execution/`
+
+Responsible for:
+
+- daily decision generation
+- paper-trading ledger maintenance
+
+Important design choice:
+
+- one explicit execution convention
+- no broker integration
+- no generalized live orchestration engine
+
+### `pipelines/`
+
+Responsible for:
+
+- thin orchestration behind CLI commands
+
+The pipelines wire modules together but do not hold strategy logic.
+
+## Phase H Operational Layer
+
+The operational layer is intentionally thin.
+
+It adds:
+
+- `decision`
+  - latest daily actionable portfolio decision
+- `paper`
+  - file-based paper-trading ledger update
+
+The paper layer uses one explicit convention:
+
+- decision after close
+- execution at the next valid open after the configured delay
+- current practical mainline delay = 1 extra benchmark trading day
+
+Guardrails remain simple and explicit:
+
+- block when required benchmark data is missing
+- block when signals / membership artifacts are stale
+- block when current market data is incomplete for target names
+- constrain buys to preserve non-negative cash
+
+## Why This Architecture Works
+
+Each stage produces a concrete artifact for the next stage:
+
+- ingest produces normalized bars
+- signals produce persisted signal panels
+- portfolio logic produces target weights
+- backtest produces NAV and weight histories
+- walk-forward produces OOS NAV and window summaries
+- diagnostics produce explanatory tables
+- decision / paper produce operational artifacts
+
+That keeps the system:
+
+- reviewable
+- testable
+- extensible
+
+without introducing unnecessary abstraction too early.
+
+## Intentional Limits
+
+This architecture still does not include:
+
+- broker connectivity
+- board-lot sizing
+- partial fills
+- multiple execution models
 - database-backed storage
-- dashboard or web service layers
-- large plugin or strategy frameworks
-- full survivorship-aware universe history and more complete listing / delisting state handling
+- service-oriented deployment
+- plugin-style strategy frameworks
+- ML optimization layers
 
-## Why The Architecture Is Believable
+Those are future choices, not current requirements.
 
-The project is designed so that each stage already produces a real artifact for the next stage:
+## Recommended Reading Order
 
-- ingestion produces normalized daily bars
-- signals produce a persisted signal panel
-- portfolio construction produces target and applied weights
-- backtesting produces daily NAV and metrics
-- walk-forward evaluation produces combined out-of-sample NAV and per-window summaries
-- diagnostics produce failure-analysis tables that explain why a weak strategy is weak
-- reporting produces markdown and chart artifacts
-
-That makes the repository stronger than a one-off script or notebook pipeline, while keeping the codebase readable for a portfolio reviewer.
-
-## Extension Path
-
-Natural next steps from the current design:
-
-1. richer Taiwan universe coverage and stronger corporate-action handling
-2. more advanced signal ranking and portfolio constraints
-3. richer risk and benchmark-relative reporting
-4. stronger paper-trading guardrails and richer operational checks
-5. future broker execution without rewriting the research pipeline
+1. [`../README.md`](../README.md)
+2. [`project_overview.md`](project_overview.md)
+3. [`../configs/tw_top50_liquidity.example.toml`](../configs/tw_top50_liquidity.example.toml)
+4. [`../src/tw_quant/cli.py`](../src/tw_quant/cli.py)
+5. [`../src/tw_quant/execution/paper.py`](../src/tw_quant/execution/paper.py)
